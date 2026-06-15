@@ -1,0 +1,4 @@
+Symbol,Signals,Wins,Losses,Expired,Win_Rate_Resolved,Expectancy_R,Avg_RR
+EURGBP.m,2,1,1,0,50.0,0.125,1.25
+EURAUD.m,1,0,1,0,0.0,-1.0,1.26
+NZDCHF.m,1,0,1,0,0.0,-1.0,1.25

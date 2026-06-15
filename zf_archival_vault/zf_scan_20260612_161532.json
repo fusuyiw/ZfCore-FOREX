@@ -1,0 +1,339 @@
+{
+  "scan_time": "2026-06-12T16:15:32.293283+08:00",
+  "account_equity": 9994.28,
+  "news_status": "LOW RISK",
+  "macro": {
+    "DXY": 99.81199645996094,
+    "US10Y": 4.4629998207092285,
+    "GOLD": 4217.10009765625
+  },
+  "summary": {
+    "symbols_scanned": 28,
+    "buy_candidates": 0,
+    "sell_candidates": 1
+  },
+  "top_buy": [],
+  "top_sell": [
+    {
+      "Symbol": "EURAUD.m",
+      "Close": 1.64474,
+      "Direction": "SELL",
+      "Regime": "RANGE",
+      "Confidence": 83,
+      "Dynamic_Lot": 0.5,
+      "SL_Pips": 30.0,
+      "Drift": 0.025854373049757254,
+      "ZF_Score": 0.22574130124770062
+    }
+  ],
+  "results": [
+    {
+      "Symbol": "AUDNZD.m",
+      "Close": 1.20834,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.0084376829967763,
+      "ZF_Score": 0.4511771807033151
+    },
+    {
+      "Symbol": "AUDUSD.m",
+      "Close": 0.70336,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.05258051171516381,
+      "ZF_Score": 0.20523740403936788
+    },
+    {
+      "Symbol": "AUDJPY.m",
+      "Close": 112.701,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.005043048574928303,
+      "ZF_Score": 0.34184215892504594
+    },
+    {
+      "Symbol": "CHFJPY.m",
+      "Close": 201.248,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.014067284905803785,
+      "ZF_Score": 0.3165776930152114
+    },
+    {
+      "Symbol": "EURAUD.m",
+      "Close": 1.64474,
+      "Direction": "SELL",
+      "Regime": "RANGE",
+      "Confidence": 83,
+      "Dynamic_Lot": 0.5,
+      "SL_Pips": 30.0,
+      "Drift": 0.025854373049757254,
+      "ZF_Score": 0.22574130124770062
+    },
+    {
+      "Symbol": "EURCAD.m",
+      "Close": 1.6182400000000001,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.061921514008225764,
+      "ZF_Score": 0.20864678405944262
+    },
+    {
+      "Symbol": "EURCHF.m",
+      "Close": 0.92106,
+      "Direction": "NEUTRAL",
+      "Regime": "TREND",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.016549336117027882,
+      "ZF_Score": 0.211193472047404
+    },
+    {
+      "Symbol": "EURGBP.m",
+      "Close": 0.86337,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.03594956659747558,
+      "ZF_Score": 0.11785649605559108
+    },
+    {
+      "Symbol": "EURJPY.m",
+      "Close": 185.376,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.02840326300938178,
+      "ZF_Score": 0.15899866582450395
+    },
+    {
+      "Symbol": "EURUSD.m",
+      "Close": 1.1569099999999999,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.027640621011416892,
+      "ZF_Score": 0.15691601272064137
+    },
+    {
+      "Symbol": "GBPAUD.m",
+      "Close": 1.9049399999999999,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.06163011426135742,
+      "ZF_Score": 0.09978934953663775
+    },
+    {
+      "Symbol": "GBPCHF.m",
+      "Close": 1.06679,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.05133615956802919,
+      "ZF_Score": 0.03502774383625456
+    },
+    {
+      "Symbol": "GBPJPY.m",
+      "Close": 214.697,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.06488017984745066,
+      "ZF_Score": 0.07213122885983395
+    },
+    {
+      "Symbol": "GBPUSD.m",
+      "Close": 1.33992,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.008033174054851211,
+      "ZF_Score": 0.12907822816802295
+    },
+    {
+      "Symbol": "NZDUSD.m",
+      "Close": 0.58205,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.060047094479186346,
+      "ZF_Score": 0.07860198151911252
+    },
+    {
+      "Symbol": "USDCAD.m",
+      "Close": 1.39882,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.034900053865297403,
+      "ZF_Score": 0.23032060385461745
+    },
+    {
+      "Symbol": "USDCHF.m",
+      "Close": 0.79613,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.04307350048535896,
+      "ZF_Score": 0.23684672038342103
+    },
+    {
+      "Symbol": "USDJPY.m",
+      "Close": 160.231,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.05731590740586856,
+      "ZF_Score": 0.0032504716457695437
+    },
+    {
+      "Symbol": "AUDCAD.m",
+      "Close": 0.98386,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.0872305786989686,
+      "ZF_Score": 0.15406064778078576
+    },
+    {
+      "Symbol": "AUDCHF.m",
+      "Close": 0.55998,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.00981392945616725,
+      "ZF_Score": 0.4613546994480797
+    },
+    {
+      "Symbol": "EURNZD.m",
+      "Close": 1.98749,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.03310890479079283,
+      "ZF_Score": 0.1955139289681135
+    },
+    {
+      "Symbol": "GBPCAD.m",
+      "Close": 1.8742999999999999,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.026737773072444126,
+      "ZF_Score": 0.11216985426419529
+    },
+    {
+      "Symbol": "GBPNZD.m",
+      "Close": 2.30191,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.06889357782557298,
+      "ZF_Score": 0.029818214994601577
+    },
+    {
+      "Symbol": "NZDCAD.m",
+      "Close": 0.81417,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.0944365301625234,
+      "ZF_Score": 0.0017511384140680127
+    },
+    {
+      "Symbol": "NZDCHF.m",
+      "Close": 0.4634,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.018368011026586088,
+      "ZF_Score": 0.2507465801765131
+    },
+    {
+      "Symbol": "NZDJPY.m",
+      "Close": 93.264,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.003553275939911976,
+      "ZF_Score": 0.22239160011443007
+    },
+    {
+      "Symbol": "XAGUSD.m",
+      "Close": 66.623,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.3769632836504869,
+      "ZF_Score": 0.2759218695881741
+    },
+    {
+      "Symbol": "XAUUSD.m",
+      "Close": 4202.84,
+      "Direction": "NEUTRAL",
+      "Regime": "RANGE",
+      "Confidence": 0,
+      "Dynamic_Lot": 0.0,
+      "SL_Pips": 30.0,
+      "Drift": 0.5215172032390878,
+      "ZF_Score": 0.2030283425560541
+    }
+  ]
+}

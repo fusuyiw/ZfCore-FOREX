@@ -1,0 +1,391 @@
+{
+  "updated_at": "2026-06-16T01:30:02.694065+08:00",
+  "source": "D:\\FOREX\\zf_validation_reports\\zf_validation_summary_20260615_114407.csv",
+  "rules": {
+    "min_expectancy_r": 0.03,
+    "min_win_rate_resolved": 43.0,
+    "min_signals": 100
+  },
+  "tradeable_symbols": [
+    "AUDCAD.m",
+    "AUDJPY.m",
+    "EURAUD.m",
+    "EURGBP.m",
+    "NK.m",
+    "NQ.m",
+    "NZDCHF.m",
+    "SP.m",
+    "XAUUSD.m"
+  ],
+  "watch_only_symbols": [
+    "EURJPY.m",
+    "EURNZD.m",
+    "GBPAUD.m",
+    "GBPUSD.m"
+  ],
+  "avoid_symbols": [
+    "AUDCHF.m",
+    "AUDNZD.m",
+    "AUDUSD.m",
+    "CHFJPY.m",
+    "CLS10.m",
+    "DJ.m",
+    "EURCAD.m",
+    "EURCHF.m",
+    "EURUSD.m",
+    "GBPCAD.m",
+    "GBPCHF.m",
+    "GBPJPY.m",
+    "GBPNZD.m",
+    "HK.m",
+    "NZDCAD.m",
+    "NZDJPY.m",
+    "NZDUSD.m",
+    "USDCAD.m",
+    "USDCHF.m",
+    "USDJPY.m",
+    "XAGUSD.m"
+  ],
+  "symbols": {
+    "AUDNZD.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0447,
+      "win_rate_resolved": 41.37,
+      "signals": 750,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0447
+    },
+    "AUDUSD.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0318,
+      "win_rate_resolved": 41.72,
+      "signals": 826,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0318
+    },
+    "AUDJPY.m": {
+      "status": "TRADEABLE",
+      "expectancy_r": 0.1164,
+      "win_rate_resolved": 49.71,
+      "signals": 840,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": 0.1164
+    },
+    "CHFJPY.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.1405,
+      "win_rate_resolved": 36.11,
+      "signals": 838,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.1405
+    },
+    "EURAUD.m": {
+      "status": "TRADEABLE",
+      "expectancy_r": 0.0397,
+      "win_rate_resolved": 45.62,
+      "signals": 818,
+      "live_expectancy_r": -1.0,
+      "live_win_rate_resolved": 0.0,
+      "live_signals": 1,
+      "blended_expectancy_r": 0.0397
+    },
+    "EURCAD.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.1581,
+      "win_rate_resolved": 34.83,
+      "signals": 757,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.1581
+    },
+    "EURCHF.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0096,
+      "win_rate_resolved": 43.14,
+      "signals": 801,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0096
+    },
+    "EURGBP.m": {
+      "status": "TRADEABLE",
+      "expectancy_r": 0.0461,
+      "win_rate_resolved": 46.3,
+      "signals": 813,
+      "live_expectancy_r": 0.125,
+      "live_win_rate_resolved": 50.0,
+      "live_signals": 2,
+      "blended_expectancy_r": 0.0461
+    },
+    "EURJPY.m": {
+      "status": "WATCH_ONLY",
+      "expectancy_r": 0.0078,
+      "win_rate_resolved": 43.87,
+      "signals": 772,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": 0.0078
+    },
+    "EURUSD.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0451,
+      "win_rate_resolved": 41.05,
+      "signals": 802,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0451
+    },
+    "GBPAUD.m": {
+      "status": "WATCH_ONLY",
+      "expectancy_r": 0.0081,
+      "win_rate_resolved": 43.83,
+      "signals": 802,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": 0.0081
+    },
+    "GBPCHF.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.1003,
+      "win_rate_resolved": 38.14,
+      "signals": 891,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.1003
+    },
+    "GBPJPY.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.054,
+      "win_rate_resolved": 40.56,
+      "signals": 816,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.054
+    },
+    "GBPUSD.m": {
+      "status": "WATCH_ONLY",
+      "expectancy_r": 0.0098,
+      "win_rate_resolved": 44.12,
+      "signals": 814,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": 0.0098
+    },
+    "NZDUSD.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0892,
+      "win_rate_resolved": 38.68,
+      "signals": 776,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0892
+    },
+    "USDCAD.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0203,
+      "win_rate_resolved": 42.24,
+      "signals": 816,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0203
+    },
+    "USDCHF.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0759,
+      "win_rate_resolved": 39.23,
+      "signals": 811,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0759
+    },
+    "USDJPY.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0504,
+      "win_rate_resolved": 40.86,
+      "signals": 889,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0504
+    },
+    "AUDCAD.m": {
+      "status": "TRADEABLE",
+      "expectancy_r": 0.0449,
+      "win_rate_resolved": 46.02,
+      "signals": 750,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": 0.0449
+    },
+    "AUDCHF.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0519,
+      "win_rate_resolved": 41.07,
+      "signals": 757,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0519
+    },
+    "EURNZD.m": {
+      "status": "WATCH_ONLY",
+      "expectancy_r": 0.0244,
+      "win_rate_resolved": 44.84,
+      "signals": 845,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": 0.0244
+    },
+    "GBPCAD.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.157,
+      "win_rate_resolved": 34.78,
+      "signals": 794,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.157
+    },
+    "GBPNZD.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0526,
+      "win_rate_resolved": 40.72,
+      "signals": 846,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0526
+    },
+    "NZDCAD.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0932,
+      "win_rate_resolved": 38.74,
+      "signals": 824,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0932
+    },
+    "NZDCHF.m": {
+      "status": "TRADEABLE",
+      "expectancy_r": 0.0403,
+      "win_rate_resolved": 45.74,
+      "signals": 775,
+      "live_expectancy_r": -1.0,
+      "live_win_rate_resolved": 0.0,
+      "live_signals": 1,
+      "blended_expectancy_r": 0.0403
+    },
+    "NZDJPY.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0455,
+      "win_rate_resolved": 41.31,
+      "signals": 823,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0455
+    },
+    "XAGUSD.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0625,
+      "win_rate_resolved": 40.12,
+      "signals": 835,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0625
+    },
+    "XAUUSD.m": {
+      "status": "TRADEABLE",
+      "expectancy_r": 0.0753,
+      "win_rate_resolved": 47.74,
+      "signals": 757,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": 0.0753
+    },
+    "CLS10.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0528,
+      "win_rate_resolved": 40.47,
+      "signals": 817,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0528
+    },
+    "DJ.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.0016,
+      "win_rate_resolved": 43.28,
+      "signals": 912,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.0016
+    },
+    "HK.m": {
+      "status": "AVOID",
+      "expectancy_r": -0.1084,
+      "win_rate_resolved": 37.39,
+      "signals": 594,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": -0.1084
+    },
+    "NK.m": {
+      "status": "TRADEABLE",
+      "expectancy_r": 0.0806,
+      "win_rate_resolved": 47.96,
+      "signals": 820,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": 0.0806
+    },
+    "NQ.m": {
+      "status": "TRADEABLE",
+      "expectancy_r": 0.0801,
+      "win_rate_resolved": 47.95,
+      "signals": 842,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": 0.0801
+    },
+    "SP.m": {
+      "status": "TRADEABLE",
+      "expectancy_r": 0.1582,
+      "win_rate_resolved": 52.27,
+      "signals": 843,
+      "live_expectancy_r": NaN,
+      "live_win_rate_resolved": NaN,
+      "live_signals": 0,
+      "blended_expectancy_r": 0.1582
+    }
+  }
+}
