@@ -58,6 +58,11 @@ OANDA_SYMBOLS = os.getenv("OANDA_SYMBOLS", "")
 OANDA_ACCOUNT_EQUITY_FALLBACK = float(os.getenv("OANDA_ACCOUNT_EQUITY_FALLBACK", "1000") or 1000)
 YFINANCE_SYMBOLS = os.getenv("YFINANCE_SYMBOLS", "")
 YFINANCE_ACCOUNT_EQUITY_FALLBACK = float(os.getenv("YFINANCE_ACCOUNT_EQUITY_FALLBACK", "1000") or 1000)
+MT5_SYMBOL_SUFFIXES = [
+    suffix.strip().lower()
+    for suffix in os.getenv("MT5_SYMBOL_SUFFIXES", "").split(",")
+    if suffix.strip()
+]
 
 # Pengaturan Struktur Fraktal Waktu (Opsi B: Fokus M30)
 TF_CORE = mt5.TIMEFRAME_M30 if mt5 else "M30"     # Inti Geometri (Pedoman 30 Menit Akang)
@@ -476,6 +481,13 @@ def data_symbols_get():
     if using_yfinance_provider():
         return YFINANCE_PROVIDER.symbols_get()
     return mt5.symbols_get() if mt5 else []
+
+
+def filter_trade_symbols(symbols):
+    names = [s.name for s in symbols if getattr(s, "name", "")]
+    if using_oanda_provider() or using_yfinance_provider() or not MT5_SYMBOL_SUFFIXES:
+        return names
+    return [name for name in names if any(name.lower().endswith(suffix) for suffix in MT5_SYMBOL_SUFFIXES)]
 
 
 def data_symbol_info(symbol_name):
@@ -2302,10 +2314,7 @@ def main_core_final():
     news_status = fetch_news_risk()
     
     all_symbols = data_symbols_get()
-    if using_oanda_provider() or using_yfinance_provider():
-        mifx_symbols = [s.name for s in all_symbols]
-    else:
-        mifx_symbols = [s.name for s in all_symbols if s.name.lower().endswith('.m')]
+    mifx_symbols = filter_trade_symbols(all_symbols)
     auto_profile_path, auto_profile_status = auto_refresh_historical_validation(mifx_symbols)
     optimizer_state, optimizer_status = run_self_healing_optimizer()
     

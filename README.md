@@ -99,7 +99,10 @@ Contoh `.env`:
 FINNHUB_API_KEY=isi_api_key_opsional
 ALPHA_VANTAGE_API_KEY=isi_api_key_opsional
 ZF_DATA_PROVIDER=MT5
+MT5_SYMBOL_SUFFIXES=
 ```
+
+`MT5_SYMBOL_SUFFIXES` boleh dikosongkan agar scanner membaca semua symbol MT5 yang relevan. Jika ingin membatasi broker tertentu, isi seperti `.m,.pro`.
 
 Untuk mode yfinance:
 
@@ -116,13 +119,13 @@ Catatan: `.env` berisi konfigurasi lokal dan tidak boleh dipush jika berisi toke
 Jalankan sekali:
 
 ```powershell
-python zf_core_scanner.py --once
+python zf_core_scanner_v20.py --once
 ```
 
 Jalankan sebagai service M30:
 
 ```powershell
-python zf_core_scanner.py --service
+python zf_core_scanner_v20.py --service
 ```
 
 Jika tidak memakai argumen, aplikasi mengikuti konfigurasi default di script.
