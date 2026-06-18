@@ -1,0 +1,105 @@
+{
+  "updated_at": "2026-06-18T11:00:01.393022+08:00",
+  "source": "D:\\FOREX\\zf_validation_reports\\zf_validation_summary_20260618_100406.csv",
+  "asset_classes": [
+    "crypto",
+    "energy",
+    "forex",
+    "metal"
+  ],
+  "active_symbol_limit": 10,
+  "primary_symbols": [
+    "GBPCADm",
+    "CADCHFm",
+    "GBPNZDm",
+    "USDCHFm",
+    "BTCJPYm",
+    "BTCCNHm",
+    "AUDJPYm",
+    "EURCADm",
+    "BTCUSDm",
+    "USDCADm"
+  ],
+  "primary_routes": [
+    {
+      "symbol": "GBPCADm",
+      "timeframe": "M15",
+      "exit_mode": "dynamic_sl_tp",
+      "win_rate_resolved": 81.25,
+      "expectancy_r": 0.633,
+      "selection_score": 80.68
+    },
+    {
+      "symbol": "CADCHFm",
+      "timeframe": "M15",
+      "exit_mode": "dynamic_sl_tp",
+      "win_rate_resolved": 81.25,
+      "expectancy_r": 0.3989,
+      "selection_score": 80.64
+    },
+    {
+      "symbol": "GBPNZDm",
+      "timeframe": "M15",
+      "exit_mode": "dynamic_sl_tp",
+      "win_rate_resolved": 73.33,
+      "expectancy_r": 0.3584,
+      "selection_score": 76.52
+    },
+    {
+      "symbol": "USDCHFm",
+      "timeframe": "M15",
+      "exit_mode": "dynamic_sl_tp",
+      "win_rate_resolved": 65.22,
+      "expectancy_r": 0.2677,
+      "selection_score": 70.58
+    },
+    {
+      "symbol": "BTCJPYm",
+      "timeframe": "M15",
+      "exit_mode": "dynamic_sl_tp",
+      "win_rate_resolved": 68.75,
+      "expectancy_r": 0.1932,
+      "selection_score": 67.63
+    },
+    {
+      "symbol": "BTCCNHm",
+      "timeframe": "M15",
+      "exit_mode": "dynamic_sl_tp",
+      "win_rate_resolved": 71.43,
+      "expectancy_r": 0.1491,
+      "selection_score": 66.95
+    },
+    {
+      "symbol": "AUDJPYm",
+      "timeframe": "M15",
+      "exit_mode": "dynamic_sl_tp",
+      "win_rate_resolved": 63.16,
+      "expectancy_r": 0.1447,
+      "selection_score": 62.96
+    },
+    {
+      "symbol": "EURCADm",
+      "timeframe": "M15",
+      "exit_mode": "dynamic_sl_tp",
+      "win_rate_resolved": 56.25,
+      "expectancy_r": 0.1091,
+      "selection_score": 57.42
+    },
+    {
+      "symbol": "BTCUSDm",
+      "timeframe": "M15",
+      "exit_mode": "dynamic_sl_tp",
+      "win_rate_resolved": 69.05,
+      "expectancy_r": 0.089,
+      "selection_score": 64.81
+    },
+    {
+      "symbol": "USDCADm",
+      "timeframe": "M15",
+      "exit_mode": "dynamic_sl_tp",
+      "win_rate_resolved": 63.64,
+      "expectancy_r": 0.0832,
+      "selection_score": 60.53
+    }
+  ]
+}

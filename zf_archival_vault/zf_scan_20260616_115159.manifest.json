@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-06-16T11:51:59.239022+08:00",
+  "retention_days": 30,
+  "files": {
+    "zf_scan_20260616_115159.csv": {
+      "sha256": "b1b4e36de921d40aaf938a1fd302ceab62d650a7f21ff48239d5c6ab5a731e60",
+      "bytes": 8476
+    },
+    "zf_scan_20260616_115159.json": {
+      "sha256": "e84543049a060d2eef755914239277dea606a7c3c770456b301a72a463756e7a",
+      "bytes": 32583
+    }
+  }
+}

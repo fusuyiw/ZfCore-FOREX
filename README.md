@@ -44,9 +44,9 @@ Jika belum mengikuti program baksos FK, pengguna tidak disarankan memakai scanne
 
 ## Fitur Utama
 
-- Scan multi-pair berbasis timeframe M30.
+- Scan multi-pair berbasis timeframe M15/M30/H4/W1.
 - Perhitungan `P_pure`, `D_res`, `ZF_Score`, `Decay_Integral`, dan `Lambda_Liquidity`.
-- Proyeksi arah 30 menit.
+- Proyeksi arah sesuai timeframe aktif, termasuk 15 menit.
 - Dynamic stop loss dan take profit.
 - Output lot, entry price, SL price, TP price, SL points, dan TP points.
 - Risk engine dengan mode normal, liquidity lock, slippage lock, circuit breaker, dan cold mode.
@@ -54,6 +54,10 @@ Jika belum mengikuti program baksos FK, pengguna tidak disarankan memakai scanne
 - Live learning dari hasil proyeksi vs hasil real.
 - Archival vault untuk menyimpan memori sesi.
 - Self-healing optimizer berbasis hasil live.
+- Optimasi historis mingguan dengan jendela berjalan 60 hari.
+- Fractional Kelly konservatif yang hanya mengurangi risiko dasar.
+- Data publik OKX untuk funding rate dan open interest crypto.
+- Flip engine terkonfirmasi, bounded recovery, drawdown cooldown, dan dynamic TP pada EA.
 - Provider data:
   - `MT5` untuk penggunaan lokal dengan MetaTrader 5.
   - `YFINANCE` untuk mode Docker/NAS atau environment tanpa MT5.
@@ -127,6 +131,47 @@ Jalankan sebagai service M30:
 ```powershell
 python zf_core_scanner_v20.py --service
 ```
+
+Untuk membaca proyeksi 15 menit, isi konfigurasi:
+
+```text
+ZF_DEFAULT_SCAN_TIMEFRAME=M15
+ZF_USE_PROFILE_TIMEFRAMES=0
+ZF_USE_FIBO_FILTER=1
+ZF_MIN_EXECUTION_ZF_SCORE=0.50
+ZF_EA_BUY_ORDER_TYPE=BUY_LIMIT
+ZF_EA_SELL_ORDER_TYPE=SELL_LIMIT
+ZF_EA_MAGIC_NUMBER=26061620
+ZF_EA_MAX_LOT=1.0
+ZF_SYNC_MT5_FORWARD_RESULTS=1
+```
+
+Dengan konfigurasi tersebut, sinyal BUY yang lolos `EKSEKUSI` akan diekspor ke EA sebagai `BUY_LIMIT`, dan sinyal SELL sebagai `SELL_LIMIT`.
+Jika ingin scanner kembali memakai timeframe terbaik dari hasil backtest per pair, ubah `ZF_USE_PROFILE_TIMEFRAMES=1`.
+Mode Fibo tetap tunduk pada prinsip ZF: Fibo hanya menjadi filter re-entry dan penentu harga limit, sementara arah utama tetap berasal dari `D_res`, `Decay_Integral`, dan `ZF_Score`.
+
+Gold dapat dijadikan focus symbol:
+
+```text
+ZF_ASSET_CLASSES=forex,energy,metal,crypto
+ZF_FOCUS_SYMBOLS=XAUUSDm
+ZF_METAL_MIN_DRIFT=1.0
+ZF_METAL_REQUIRE_TREND=1
+```
+
+Dengan mode ini, Gold tetap dipindai, tetapi OP hanya dibuka saat resonansi metal ekstrem: drift minimal 1.0 dan regime `TREND`.
+
+Forward-test learning aktif jika EA demo memakai `MagicNumber` yang sama. Scanner akan membaca closed deal dari history MT5, menyimpannya ke `zf_live_learning/mt5_forward_deals.csv`, lalu memasukkannya ke live learning agar optimizer menyesuaikan parameter dari hasil demo nyata.
+
+Konteks crypto OKX menggunakan endpoint publik resmi dan tidak membutuhkan API key:
+
+```text
+ZF_OKX_PUBLIC_DATA_ENABLED=1
+ZF_OKX_BASE_URL=https://www.okx.com
+ZF_OKX_REQUIRE_CRYPTO_DATA=0
+```
+
+Funding rate dan perubahan open interest menjadi sensor tambahan ZF, bukan pengganti data harga MT5. Jika OKX sedang tidak tersedia dan `ZF_OKX_REQUIRE_CRYPTO_DATA=0`, scanner mencatat kegagalan tersebut tetapi tetap dapat menganalisis aset lain.
 
 Jika tidak memakai argumen, aplikasi mengikuti konfigurasi default di script.
 

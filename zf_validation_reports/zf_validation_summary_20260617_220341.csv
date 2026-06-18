@@ -1,0 +1,5 @@
+Symbol,Timeframe,Asset_Class,Exit_Mode,Signals,Wins,Losses,Expired,Win_Rate_Resolved,Win_Rate_All,Expectancy_R,Avg_RR,Avg_Bars_To_Result,Avg_Hours_To_Result,Selection_Score
+XAUEURm,M15,metal,dynamic_sl_tp,40,22,16,2,57.89,55.0,-0.028,1.36,27.2,6.8,53.6
+XAUUSDm,M15,metal,dynamic_sl_tp,134,69,60,5,53.49,51.49,-0.1342,1.35,19.39,4.85,51.05
+XAUGBPm,M15,metal,dynamic_sl_tp,38,21,16,1,56.76,55.26,-0.0881,1.36,23.79,5.95,49.99
+XAUAUDm,M15,metal,dynamic_sl_tp,42,21,18,3,53.85,50.0,-0.1154,1.37,27.05,6.76,47.6
