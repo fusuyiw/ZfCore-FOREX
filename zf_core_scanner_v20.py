@@ -18,6 +18,8 @@ import csv
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from zf_strategy_core import calculate_trend_state, calculate_wilder_adx
+
 # ==============================================================================
 # CONFIGURATION BLOCK (API Keys & Risk Management)
 # ==============================================================================
@@ -34,7 +36,12 @@ DAILY_LEARNING_SUMMARY_PATH = LIVE_LEARNING_DIR / "daily_learning_summary.csv"
 OPTIMIZER_STATE_PATH = PROFILE_DIR / "optimizer_state.json"
 PRIMARY_SYMBOLS_PATH = PROFILE_DIR / "primary_symbols.json"
 MT5_FORWARD_DEALS_PATH = LIVE_LEARNING_DIR / "mt5_forward_deals.csv"
+MANUAL_POSITIONS_PATH = LIVE_LEARNING_DIR / "manual_positions.json"
+MANUAL_TRADES_PATH = LIVE_LEARNING_DIR / "manual_trades.csv"
+MANUAL_SUMMARY_PATH = LIVE_LEARNING_DIR / "manual_performance_summary.csv"
 OKX_MARKET_STATE_PATH = LIVE_LEARNING_DIR / "okx_market_state.json"
+CALIBRATION_PROFILE_PATH = PROFILE_DIR / "calibration_profile.json"
+PULSE_PROFILE_PATH = PROFILE_DIR / "pulse_profile.json"
 
 
 def load_env_file(env_path=BASE_DIR / ".env"):
@@ -51,6 +58,32 @@ def load_env_file(env_path=BASE_DIR / ".env"):
 
 
 load_env_file()
+
+
+def load_calibration_profile():
+    if not CALIBRATION_PROFILE_PATH.exists():
+        return {}
+    try:
+        payload = json.loads(CALIBRATION_PROFILE_PATH.read_text(encoding="utf-8"))
+        return payload.get("symbols", {}) if isinstance(payload, dict) else {}
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+CALIBRATION_PROFILE = load_calibration_profile()
+
+
+def load_pulse_profile():
+    if not PULSE_PROFILE_PATH.exists():
+        return set()
+    try:
+        payload = json.loads(PULSE_PROFILE_PATH.read_text(encoding="utf-8"))
+        return set(payload.get("enabled_symbols", []))
+    except (OSError, json.JSONDecodeError):
+        return set()
+
+
+PULSE_ENABLED_SYMBOLS = load_pulse_profile()
 
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "")
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "")
@@ -83,10 +116,11 @@ FOCUS_SYMBOLS = [item.strip() for item in os.getenv("ZF_FOCUS_SYMBOLS", "").spli
 TIMEFRAME_MAP = {
     "M15": mt5.TIMEFRAME_M15 if mt5 else "M15",
     "M30": mt5.TIMEFRAME_M30 if mt5 else "M30",
+    "H1": mt5.TIMEFRAME_H1 if mt5 else "H1",
     "H4": mt5.TIMEFRAME_H4 if mt5 else "H4",
     "W1": mt5.TIMEFRAME_W1 if mt5 else "W1",
 }
-TIMEFRAME_HOURS = {"M15": 0.25, "M30": 0.5, "H4": 4.0, "W1": 168.0}
+TIMEFRAME_HOURS = {"M15": 0.25, "M30": 0.5, "H1": 1.0, "H4": 4.0, "W1": 168.0}
 TF_CORE = TIMEFRAME_MAP["M30"]
 DEFAULT_SCAN_TIMEFRAME = os.getenv("ZF_DEFAULT_SCAN_TIMEFRAME", "M30").strip().upper()
 TP_ONLY_TARGET_PIPS = float(os.getenv("ZF_TP_ONLY_TARGET_PIPS", "50") or 50)
@@ -116,8 +150,33 @@ EA_MAX_LOT = float(os.getenv("ZF_EA_MAX_LOT", "1.0") or 1.0)
 EA_BUY_ORDER_TYPE = os.getenv("ZF_EA_BUY_ORDER_TYPE", "BUY_LIMIT").strip().upper()
 EA_SELL_ORDER_TYPE = os.getenv("ZF_EA_SELL_ORDER_TYPE", "SELL_LIMIT").strip().upper()
 EA_MAGIC_NUMBER = int(os.getenv("ZF_EA_MAGIC_NUMBER", "26061620") or 26061620)
+PROJECTED_EXECUTION_ENABLED = os.getenv("ZF_PROJECTED_EXECUTION_ENABLED", "1").strip().lower() not in ("0", "false", "no")
+PROJECTED_LOT_FACTOR = float(os.getenv("ZF_PROJECTED_LOT_FACTOR", "0.35") or 0.35)
+PROJECTED_EXECUTION_MIN_CONFIDENCE = float(os.getenv("ZF_PROJECTED_EXECUTION_MIN_CONFIDENCE", "55") or 55)
+TREND_ENGINE_ENABLED = os.getenv("ZF_TREND_ENGINE_ENABLED", "1").strip().lower() not in ("0", "false", "no")
+TREND_MIN_SCORE = float(os.getenv("ZF_TREND_MIN_SCORE", "35") or 35)
+TREND_STRONG_SCORE = float(os.getenv("ZF_TREND_STRONG_SCORE", "55") or 55)
+TREND_COUNTER_BLOCK_SCORE = float(os.getenv("ZF_TREND_COUNTER_BLOCK_SCORE", "45") or 45)
+TREND_MARKET_ENTRY_ENABLED = os.getenv("ZF_TREND_MARKET_ENTRY_ENABLED", "1").strip().lower() not in ("0", "false", "no")
+TREND_MARKET_MIN_SCORE = float(os.getenv("ZF_TREND_MARKET_MIN_SCORE", "60") or 60)
+TREND_MARKET_MIN_ZF = float(os.getenv("ZF_TREND_MARKET_MIN_ZF", "0.30") or 0.30)
+TREND_MARKET_MIN_RR = float(os.getenv("ZF_TREND_MARKET_MIN_RR", "1.50") or 1.50)
+PULSE_MODE_ENABLED = os.getenv("ZF_PULSE_MODE_ENABLED", "1").strip().lower() not in ("0", "false", "no")
+PULSE_MIN_TREND_SCORE = float(os.getenv("ZF_PULSE_MIN_TREND_SCORE", "35") or 35)
+PULSE_MIN_ZF_SCORE = float(os.getenv("ZF_PULSE_MIN_ZF_SCORE", "0.20") or 0.20)
+PULSE_LOT = float(os.getenv("ZF_PULSE_LOT", "0.01") or 0.01)
+PULSE_TP_ATR = float(os.getenv("ZF_PULSE_TP_ATR", "0.80") or 0.80)
+PULSE_SL_ATR = float(os.getenv("ZF_PULSE_SL_ATR", "1.00") or 1.00)
+PULSE_MIN_QUALITY = float(os.getenv("ZF_PULSE_MIN_QUALITY", "45") or 45)
 SYNC_MT5_FORWARD_RESULTS = os.getenv("ZF_SYNC_MT5_FORWARD_RESULTS", "1").strip().lower() not in ("0", "false", "no")
 MT5_FORWARD_LOOKBACK_DAYS = int(os.getenv("ZF_MT5_FORWARD_LOOKBACK_DAYS", "30") or 30)
+TRACK_MANUAL_POSITIONS = os.getenv("ZF_TRACK_MANUAL_POSITIONS", "1").strip().lower() not in ("0", "false", "no")
+MANUAL_LEARNING_MIN_TRADES = int(os.getenv("ZF_MANUAL_LEARNING_MIN_TRADES", "20") or 20)
+MANUAL_LEARNING_WEIGHT = float(os.getenv("ZF_MANUAL_LEARNING_WEIGHT", "0.10") or 0.10)
+MANUAL_COUNTER_ENABLED = os.getenv("ZF_MANUAL_COUNTER_ENABLED", "1").strip().lower() not in ("0", "false", "no")
+MANUAL_COUNTER_MIN_TREND_SCORE = float(os.getenv("ZF_MANUAL_COUNTER_MIN_TREND_SCORE", "60") or 60)
+MANUAL_COUNTER_LOT_FACTOR = float(os.getenv("ZF_MANUAL_COUNTER_LOT_FACTOR", "0.30") or 0.30)
+MANUAL_COUNTER_MAX_LOT = float(os.getenv("ZF_MANUAL_COUNTER_MAX_LOT", "0.03") or 0.03)
 SELF_HEALING_OPTIMIZER = True
 OPTIMIZER_MIN_LIVE_SIGNALS = 20
 OPTIMIZER_REFRESH_MINUTES = 60
@@ -126,6 +185,9 @@ OKX_BASE_URL = os.getenv("ZF_OKX_BASE_URL", "https://www.okx.com").rstrip("/")
 OKX_TIMEOUT_SECONDS = float(os.getenv("ZF_OKX_TIMEOUT_SECONDS", "8") or 8)
 OKX_CACHE_SECONDS = int(os.getenv("ZF_OKX_CACHE_SECONDS", "60") or 60)
 OKX_REQUIRE_CRYPTO_DATA = os.getenv("ZF_OKX_REQUIRE_CRYPTO_DATA", "0").strip().lower() not in ("0", "false", "no")
+TICK_MICRO_ENABLED = os.getenv("ZF_TICK_MICRO_ENABLED", "1").strip().lower() not in ("0", "false", "no")
+TICK_MICRO_LOOKBACK_MINUTES = int(os.getenv("ZF_TICK_MICRO_LOOKBACK_MINUTES", "15") or 15)
+TICK_MICRO_MIN_TICKS = int(os.getenv("ZF_TICK_MICRO_MIN_TICKS", "80") or 80)
 FRACTIONAL_KELLY_ENABLED = os.getenv("ZF_FRACTIONAL_KELLY_ENABLED", "1").strip().lower() not in ("0", "false", "no")
 FRACTIONAL_KELLY_FRACTION = float(os.getenv("ZF_FRACTIONAL_KELLY_FRACTION", "0.25") or 0.25)
 FRACTIONAL_KELLY_MIN_MULTIPLIER = float(os.getenv("ZF_FRACTIONAL_KELLY_MIN_MULTIPLIER", "0.25") or 0.25)
@@ -155,6 +217,13 @@ ZF_DRIFT_ZSCORE_SCALE = 3.0
 ARCHIVE_RETENTION_DAYS = 30
 MAX_SPREAD_PIPS = 3.0
 MAX_SLIPPAGE_PIPS = 2.0
+ASSET_EXECUTION_LIMITS = {
+    "forex": {"max_spread_pips": 4.0, "max_slippage_pips": 3.0},
+    "metal": {"max_spread_pips": 40.0, "max_slippage_pips": 30.0},
+    "energy": {"max_spread_pips": 20.0, "max_slippage_pips": 15.0},
+    "crypto": {"max_spread_pips": 1500.0, "max_slippage_pips": 1000.0},
+    "other": {"max_spread_pips": MAX_SPREAD_PIPS, "max_slippage_pips": MAX_SLIPPAGE_PIPS},
+}
 SPREAD_STRESS_PIPS = 2.0
 DEPTH_IMBALANCE_ALERT = 0.65
 MIN_DEPTH_VOLUME = 1.0
@@ -163,8 +232,11 @@ P_PURE_MICRO_WEIGHT = 0.30
 FIBO_LOOKBACK_BARS = 96
 FIBO_BUY_MAX = 0.618
 FIBO_SELL_MIN = 0.382
-METAL_MIN_DRIFT = float(os.getenv("ZF_METAL_MIN_DRIFT", "1.0") or 1.0)
+METAL_MIN_DRIFT = float(os.getenv("ZF_METAL_MIN_DRIFT", "0.08") or 0.08)
 METAL_REQUIRE_TREND = os.getenv("ZF_METAL_REQUIRE_TREND", "1").strip().lower() not in ("0", "false", "no")
+ASSET_TREND_MIN_SCORE = float(os.getenv("ZF_ASSET_TREND_MIN_SCORE", "45") or 45)
+GOLD_MIN_ATR_PCT = float(os.getenv("ZF_GOLD_MIN_ATR_PCT", "0.08") or 0.08)
+CRYPTO_MIN_ATR_PCT = float(os.getenv("ZF_CRYPTO_MIN_ATR_PCT", "0.20") or 0.20)
 ATR_SL_MULTIPLIER = 1.35
 DRIFT_SL_MULTIPLIER = 1.15
 TREND_SL_MULTIPLIER = 1.20
@@ -184,6 +256,7 @@ PROJECTION_CONFIDENCE_FLOOR = 58
 WATCH_ONLY_CONFIDENCE_FLOOR = 75
 STRICT_ACCURACY_MODE = os.getenv("ZF_STRICT_ACCURACY_MODE", "1").strip().lower() not in ("0", "false", "no")
 STRICT_MIN_QUALITY_SCORE = float(os.getenv("ZF_STRICT_MIN_QUALITY_SCORE", "55") or 55)
+STRICT_MIN_PROJECTED_QUALITY_SCORE = float(os.getenv("ZF_STRICT_MIN_PROJECTED_QUALITY_SCORE", "50") or 50)
 STRICT_MIN_HISTORICAL_WIN_RATE = float(os.getenv("ZF_STRICT_MIN_HISTORICAL_WIN_RATE", "58.0") or 58.0)
 STRICT_MIN_HISTORICAL_EXPECTANCY_R = float(os.getenv("ZF_STRICT_MIN_HISTORICAL_EXPECTANCY_R", "0.03") or 0.03)
 STRICT_MIN_LIVE_EXPECTANCY_R = float(os.getenv("ZF_STRICT_MIN_LIVE_EXPECTANCY_R", "-0.05") or -0.05)
@@ -191,6 +264,7 @@ STRICT_MIN_PROJECTED_MATURITY = float(os.getenv("ZF_STRICT_MIN_PROJECTED_MATURIT
 STRICT_MIN_PROJECTED_RR = float(os.getenv("ZF_STRICT_MIN_PROJECTED_RR", "1.15") or 1.15)
 STRICT_MIN_STRICT_RR = float(os.getenv("ZF_STRICT_MIN_STRICT_RR", "1.05") or 1.05)
 STRICT_MARKET_HOURS_UTC = set(range(6, 21))
+STRICT_MIN_LIVE_SAMPLE = int(os.getenv("ZF_STRICT_MIN_LIVE_SAMPLE", "10") or 10)
 
 OPTIMIZER_DEFAULTS = {
     "atr_sl_multiplier": ATR_SL_MULTIPLIER,
@@ -565,6 +639,10 @@ class OkxPublicProvider:
             "OI_Change_Pct": np.nan,
             "External_Stress": 0.0,
             "Funding_Bias": "NEUTRAL",
+            "Book_Imbalance": 0.0,
+            "Book_Depth_USD": 0.0,
+            "Taker_Imbalance": 0.0,
+            "Flow_Bias": "NEUTRAL",
         }
         if not OKX_PUBLIC_DATA_ENABLED:
             return empty
@@ -580,9 +658,12 @@ class OkxPublicProvider:
                 "/api/v5/public/open-interest",
                 {"instType": "SWAP", "instId": instrument},
             )
+            book_rows = self.request("/api/v5/market/books", {"instId": instrument, "sz": "50"})
+            trade_rows = self.request("/api/v5/market/trades", {"instId": instrument, "limit": "100"})
             ticker = ticker_rows[0] if ticker_rows else {}
             funding = funding_rows[0] if funding_rows else {}
             oi = oi_rows[0] if oi_rows else {}
+            book = book_rows[0] if book_rows else {}
 
             funding_rate = float(funding.get("fundingRate") or 0.0)
             open_interest = float(oi.get("oi") or 0.0)
@@ -597,7 +678,31 @@ class OkxPublicProvider:
 
             funding_stress = min(abs(funding_rate) / 0.001, 1.0)
             oi_stress = min(abs(oi_change_pct) / 5.0, 1.0) if pd.notna(oi_change_pct) else 0.0
-            external_stress = float(np.clip((funding_stress * 0.60) + (oi_stress * 0.40), 0, 1))
+            bid_depth_usd = sum(float(level[0]) * float(level[1]) for level in book.get("bids", []) if len(level) >= 2)
+            ask_depth_usd = sum(float(level[0]) * float(level[1]) for level in book.get("asks", []) if len(level) >= 2)
+            total_book_depth = bid_depth_usd + ask_depth_usd
+            book_imbalance = (
+                (bid_depth_usd - ask_depth_usd) / total_book_depth
+                if total_book_depth > 0
+                else 0.0
+            )
+            taker_buy = sum(float(item.get("sz") or 0.0) for item in trade_rows if item.get("side") == "buy")
+            taker_sell = sum(float(item.get("sz") or 0.0) for item in trade_rows if item.get("side") == "sell")
+            taker_total = taker_buy + taker_sell
+            taker_imbalance = (taker_buy - taker_sell) / taker_total if taker_total > 0 else 0.0
+            flow_bias = "BUY" if (book_imbalance * 0.45 + taker_imbalance * 0.55) > 0.12 else (
+                "SELL" if (book_imbalance * 0.45 + taker_imbalance * 0.55) < -0.12 else "NEUTRAL"
+            )
+            flow_stress = min((abs(book_imbalance) + abs(taker_imbalance)) / 2.0, 1.0)
+            external_stress = float(
+                np.clip(
+                    (funding_stress * 0.35)
+                    + (oi_stress * 0.25)
+                    + (flow_stress * 0.40),
+                    0,
+                    1,
+                )
+            )
             funding_bias = "SELL" if funding_rate > 0.0005 else "BUY" if funding_rate < -0.0005 else "NEUTRAL"
 
             self.state[instrument] = {
@@ -617,6 +722,10 @@ class OkxPublicProvider:
                 "OI_Change_Pct": oi_change_pct,
                 "External_Stress": external_stress,
                 "Funding_Bias": funding_bias,
+                "Book_Imbalance": float(book_imbalance),
+                "Book_Depth_USD": float(total_book_depth),
+                "Taker_Imbalance": float(taker_imbalance),
+                "Flow_Bias": flow_bias,
             }
         except Exception as exc:
             empty["Instrument"] = instrument
@@ -951,6 +1060,41 @@ def load_or_build_historical_profile():
             "blended_expectancy_r": expectancy,
         }
 
+    # A successful chronological calibration is stronger evidence than the
+    # legacy in-sample ranking, so it becomes the active universe.
+    if CALIBRATION_PROFILE:
+        calibrated_profile = {}
+        for symbol, calibration in CALIBRATION_PROFILE.items():
+            if not isinstance(calibration, dict):
+                continue
+            test = calibration.get("test", {})
+            params = calibration.get("params", {})
+            expectancy = float(test.get("expectancy_r", 0.0) or 0.0)
+            win_rate = float(test.get("win_rate", 0.0) or 0.0)
+            signals = int(test.get("filled", 0) or 0)
+            if expectancy <= 0 or signals < 8:
+                continue
+            calibrated_profile[symbol] = {
+                "status": "TRADEABLE",
+                "expectancy_r": expectancy,
+                "win_rate_resolved": win_rate,
+                "signals": signals,
+                "asset_class": classify_symbol(symbol),
+                "timeframe": normalize_timeframe_name(calibration.get("timeframe", DEFAULT_SCAN_TIMEFRAME)),
+                "exit_mode": "dynamic_sl_tp",
+                "optimizer_zf_floor": float(params.get("zf_floor", MIN_EXECUTION_ZF_SCORE)),
+                "optimizer_fibo_filter": True,
+                "optimizer_trailing": True,
+                "avg_hours_to_result": np.nan,
+                "selection_score": float(calibration.get("walk_forward_score", 0.0) or 0.0),
+                "live_expectancy_r": np.nan,
+                "live_win_rate_resolved": np.nan,
+                "live_signals": 0,
+                "blended_expectancy_r": expectancy,
+            }
+        if calibrated_profile:
+            profile = calibrated_profile
+
     if LIVE_SUMMARY_PATH.exists():
         try:
             live_df = pd.read_csv(LIVE_SUMMARY_PATH)
@@ -1150,10 +1294,28 @@ def calculate_accuracy_quality_score(row):
         rr_ratio = 1.0
     spread = float(row.get("Spread_Pips", 0) or 0)
     slippage = float(row.get("Slippage_Est_Pips", 0) or 0)
+    asset_class = str(row.get("Asset_Class", "other") or "other").lower()
+    limits = ASSET_EXECUTION_LIMITS.get(asset_class, ASSET_EXECUTION_LIMITS["other"])
+    max_spread = pd.to_numeric(
+        pd.Series([row.get("Asset_Max_Spread_Pips", limits["max_spread_pips"])]),
+        errors="coerce",
+    ).iloc[0]
+    max_slippage = pd.to_numeric(
+        pd.Series([row.get("Asset_Max_Slippage_Pips", limits["max_slippage_pips"])]),
+        errors="coerce",
+    ).iloc[0]
+    max_spread = max(float(max_spread) if pd.notna(max_spread) else limits["max_spread_pips"], 0.01)
+    max_slippage = max(float(max_slippage) if pd.notna(max_slippage) else limits["max_slippage_pips"], 0.01)
     historical_win = row.get("Historical_Win_Rate", np.nan)
     historical_expectancy = row.get("Historical_Expectancy_R", np.nan)
     live_expectancy = row.get("Live_Expectancy_R", np.nan)
     signal_type = row.get("Signal_Type", "NEUTRAL")
+    direction = row.get("Direction", "NEUTRAL")
+    trend_bias = row.get("Trend_Bias", "RANGE")
+    trend_strength = float(row.get("Trend_Strength", 0) or 0)
+    tick_quality = float(row.get("Tick_Quality", 0) or 0)
+    tick_bias = str(row.get("Tick_Bias", "NEUTRAL") or "NEUTRAL")
+    flow_bias = str(row.get("OKX_Flow_Bias", "NEUTRAL") or "NEUTRAL")
 
     history_component = 42.0 if pd.isna(historical_win) else float(historical_win)
     expectancy_component = 50.0 if pd.isna(historical_expectancy) else np.clip(50 + float(historical_expectancy) * 120, 0, 100)
@@ -1161,17 +1323,39 @@ def calculate_accuracy_quality_score(row):
     rr_component = np.clip((rr_ratio / 1.8) * 100, 0, 100)
     maturity_component = np.clip(maturity * 100, 0, 100)
     zf_component = np.clip(zf_score * 100, 0, 100)
-    cost_penalty = np.clip((spread * 4.0) + (slippage * 5.0), 0, 30)
-    projected_penalty = 4.0 if signal_type == "PROJECTED" else 0.0
+    if direction in ("BUY", "SELL") and trend_bias == direction:
+        trend_component = np.clip(55 + trend_strength * 0.45, 0, 100)
+    elif trend_bias == "RANGE":
+        trend_component = 50.0
+    else:
+        trend_component = np.clip(45 - trend_strength * 0.35, 0, 50)
+    micro_component = 50.0
+    if direction in ("BUY", "SELL"):
+        if tick_bias == direction:
+            micro_component += 25.0 * tick_quality
+        elif tick_bias not in ("NEUTRAL", direction):
+            micro_component -= 25.0 * tick_quality
+        if asset_class == "crypto":
+            if flow_bias == direction:
+                micro_component += 15.0
+            elif flow_bias not in ("NEUTRAL", direction):
+                micro_component -= 15.0
+    micro_component = float(np.clip(micro_component, 0, 100))
+    # Cost is already modeled in SL/TP and backtests. Penalize only its
+    # proportion to the asset-specific execution budget, avoiding double punishment.
+    cost_penalty = np.clip((spread / max_spread) * 5.0 + (slippage / max_slippage) * 5.0, 0, 12)
+    projected_penalty = 2.0 if signal_type == "PROJECTED" else 1.0 if signal_type == "PULSE" else 0.0
 
     score = (
-        confidence * 0.23
-        + maturity_component * 0.18
-        + history_component * 0.20
-        + expectancy_component * 0.13
-        + live_component * 0.10
+        confidence * 0.18
+        + maturity_component * 0.14
+        + history_component * 0.18
+        + expectancy_component * 0.12
+        + live_component * 0.08
         + rr_component * 0.10
-        + zf_component * 0.06
+        + zf_component * 0.05
+        + trend_component * 0.09
+        + micro_component * 0.06
         - cost_penalty
         - projected_penalty
     )
@@ -1216,15 +1400,27 @@ def apply_accuracy_quality_gate(risk_df):
         maturity = float(row.get("Setup_Maturity", 0) or 0)
         rr_ratio = float(row.get("RR_Ratio", 0) or 0)
 
-        if quality < STRICT_MIN_QUALITY_SCORE:
-            reasons.append(f"quality {quality:.1f} < {STRICT_MIN_QUALITY_SCORE}")
+        required_quality = (
+            PULSE_MIN_QUALITY
+            if signal_type == "PULSE"
+            else STRICT_MIN_PROJECTED_QUALITY_SCORE
+            if signal_type == "PROJECTED"
+            else STRICT_MIN_QUALITY_SCORE
+        )
+        if quality < required_quality:
+            reasons.append(f"quality {quality:.1f} < {required_quality}")
         if historical_status in ("AVOID", "UNVALIDATED") and "Historical_Status" in gated_df.columns:
             reasons.append(f"status historis {historical_status}")
         if pd.notna(historical_win) and historical_win < STRICT_MIN_HISTORICAL_WIN_RATE:
             reasons.append(f"winrate historis {float(historical_win):.2f}% < {STRICT_MIN_HISTORICAL_WIN_RATE:.2f}%")
         if pd.notna(historical_expectancy) and historical_expectancy < STRICT_MIN_HISTORICAL_EXPECTANCY_R:
             reasons.append(f"expectancy historis {float(historical_expectancy):.4f}R < {STRICT_MIN_HISTORICAL_EXPECTANCY_R:.4f}R")
-        if pd.notna(live_expectancy) and live_expectancy < STRICT_MIN_LIVE_EXPECTANCY_R:
+        live_signals = int(row.get("Live_Signals", 0) or 0)
+        if (
+            live_signals >= STRICT_MIN_LIVE_SAMPLE
+            and pd.notna(live_expectancy)
+            and live_expectancy < STRICT_MIN_LIVE_EXPECTANCY_R
+        ):
             reasons.append(f"expectancy live {float(live_expectancy):.4f}R masih negatif")
         if signal_type == "PROJECTED" and maturity < STRICT_MIN_PROJECTED_MATURITY:
             reasons.append(f"maturity proyeksi {maturity:.2f} < {STRICT_MIN_PROJECTED_MATURITY:.2f}")
@@ -1232,9 +1428,6 @@ def apply_accuracy_quality_gate(risk_df):
             reasons.append(f"RR proyeksi {rr_ratio:.2f} < {STRICT_MIN_PROJECTED_RR:.2f}")
         if signal_type == "STRICT" and rr_ratio < STRICT_MIN_STRICT_RR:
             reasons.append(f"RR strict {rr_ratio:.2f} < {STRICT_MIN_STRICT_RR:.2f}")
-        if market_session == "THIN_SESSION" and signal_type == "PROJECTED":
-            reasons.append("sesi market tipis untuk sinyal proyeksi")
-
         if reasons and bool(row.get("Trade_Allowed", False)):
             gated_df.at[idx, "Trade_Allowed"] = False
             gated_df.at[idx, "Dynamic_Lot"] = 0.0
@@ -1247,6 +1440,23 @@ def apply_accuracy_quality_gate(risk_df):
             gated_df.at[idx, "Accuracy_Gate"] = "WATCH"
             gated_df.at[idx, "Accuracy_Gate_Reason"] = " | ".join(reasons)
 
+    projected_ready = (
+        PROJECTED_EXECUTION_ENABLED
+        & (gated_df["Signal_Type"] == "PROJECTED")
+        & gated_df["Trade_Allowed"]
+        & (gated_df["Accuracy_Gate"] == "PASS")
+    )
+    gated_df.loc[projected_ready, "Dynamic_Lot"] = (
+        gated_df.loc[projected_ready, "Dynamic_Lot"] * PROJECTED_LOT_FACTOR
+    ).clip(lower=0.01)
+    gated_df.loc[projected_ready, "Action_Signal"] = "EKSEKUSI_TERBATAS"
+    pulse_ready = (
+        PULSE_MODE_ENABLED
+        & (gated_df["Signal_Type"] == "PULSE")
+        & gated_df["Trade_Allowed"]
+        & (gated_df["Accuracy_Gate"] == "PASS")
+    )
+    gated_df.loc[pulse_ready, "Action_Signal"] = "EKSEKUSI_PULSE"
     gated_df["User_Recommendation"] = gated_df.apply(build_user_recommendation, axis=1)
     return gated_df
 
@@ -1450,7 +1660,7 @@ def export_ea_signals(buy_pool, sell_pool):
     candidates = pd.concat([buy_pool, sell_pool], ignore_index=True) if len(buy_pool) or len(sell_pool) else pd.DataFrame()
 
     for _, row in candidates.iterrows():
-        if row.get("Action_Signal") != "EKSEKUSI" or row.get("Direction") not in ("BUY", "SELL"):
+        if row.get("Action_Signal") not in ("EKSEKUSI", "EKSEKUSI_TERBATAS", "EKSEKUSI_PULSE") or row.get("Direction") not in ("BUY", "SELL"):
             continue
         if pd.isna(row.get("SL_Price", np.nan)) or pd.isna(row.get("TP_Price", np.nan)):
             continue
@@ -1461,7 +1671,10 @@ def export_ea_signals(buy_pool, sell_pool):
         lot = min(lot, EA_MAX_LOT)
 
         signal_id = f"{row['Symbol']}_{row['Direction']}_{row.get('Timeframe', 'M30')}_{scan_time.strftime('%Y%m%d_%H%M')}"
-        order_type = EA_BUY_ORDER_TYPE if row["Direction"] == "BUY" else EA_SELL_ORDER_TYPE
+        preferred_order_type = str(row.get("Preferred_Order_Type", "") or "").upper()
+        order_type = preferred_order_type or (
+            EA_BUY_ORDER_TYPE if row["Direction"] == "BUY" else EA_SELL_ORDER_TYPE
+        )
         rows.append(
             {
                 "SignalId": signal_id,
@@ -1505,10 +1718,14 @@ def export_ea_signals(buy_pool, sell_pool):
         "Quality",
         "Note",
     ]
-    with output_path.open("w", encoding="utf-8", newline="") as f:
+    temp_path = output_path.with_name(output_path.name + ".tmp")
+    with temp_path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
         writer.writeheader()
         writer.writerows(rows)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(temp_path, output_path)
 
     return output_path
 
@@ -1643,6 +1860,331 @@ def sync_mt5_forward_results():
     append_closed_signals(closed_signals)
     update_live_performance_summary()
     return {"imported": len(rows), "status": "IMPORTED"}
+
+
+def load_manual_position_state():
+    if not MANUAL_POSITIONS_PATH.exists():
+        return {}
+    try:
+        payload = json.loads(MANUAL_POSITIONS_PATH.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_manual_position_state(state):
+    LIVE_LEARNING_DIR.mkdir(parents=True, exist_ok=True)
+    MANUAL_POSITIONS_PATH.write_text(
+        json.dumps(state, ensure_ascii=True, indent=2, default=str),
+        encoding="utf-8",
+    )
+
+
+def append_manual_trades(rows):
+    if not rows:
+        return
+    LIVE_LEARNING_DIR.mkdir(parents=True, exist_ok=True)
+    frame = pd.DataFrame(rows)
+    write_header = not MANUAL_TRADES_PATH.exists() or MANUAL_TRADES_PATH.stat().st_size == 0
+    frame.to_csv(MANUAL_TRADES_PATH, mode="a", header=write_header, index=False)
+
+
+def update_manual_performance_summary():
+    if not MANUAL_TRADES_PATH.exists():
+        return pd.DataFrame()
+    try:
+        trades = pd.read_csv(MANUAL_TRADES_PATH)
+    except (OSError, pd.errors.EmptyDataError):
+        return pd.DataFrame()
+    if trades.empty:
+        return pd.DataFrame()
+    rows = []
+    for symbol, group in trades.groupby("Symbol"):
+        net = pd.to_numeric(group["Net_Profit"], errors="coerce").fillna(0.0)
+        wins = int((net > 0).sum())
+        losses = int((net < 0).sum())
+        rows.append(
+            {
+                "Symbol": symbol,
+                "Trades": int(len(group)),
+                "Wins": wins,
+                "Losses": losses,
+                "Win_Rate": round(wins / (wins + losses) * 100, 2) if wins + losses else 0.0,
+                "Net_Profit": round(float(net.sum()), 2),
+                "Avg_Profit": round(float(net.mean()), 2),
+                "Trend_Aligned_Trades": int(
+                    group.get("Trend_Alignment_At_Open", pd.Series(dtype=str)).eq("ALIGNED").sum()
+                ),
+            }
+        )
+    summary = pd.DataFrame(rows).sort_values("Net_Profit", ascending=False)
+    summary.to_csv(MANUAL_SUMMARY_PATH, index=False)
+    return summary
+
+
+def latest_position_close_deal(position_id):
+    if not mt5:
+        return None
+    end_time = datetime.now()
+    start_time = end_time - timedelta(days=MT5_FORWARD_LOOKBACK_DAYS)
+    deals = mt5.history_deals_get(start_time, end_time) or []
+    deal_entry_out = getattr(mt5, "DEAL_ENTRY_OUT", 1)
+    deal_entry_inout = getattr(mt5, "DEAL_ENTRY_INOUT", 2)
+    matching = [
+        deal
+        for deal in deals
+        if int(getattr(deal, "position_id", 0) or 0) == int(position_id)
+        and int(getattr(deal, "entry", -1) or -1) in (deal_entry_out, deal_entry_inout)
+    ]
+    return sorted(matching, key=lambda deal: int(getattr(deal, "time_msc", 0) or 0))[-1] if matching else None
+
+
+def manual_position_recommendation(position, trend_context, emergency_sl):
+    direction = "BUY" if int(position.type) == getattr(mt5, "POSITION_TYPE_BUY", 0) else "SELL"
+    trend_bias = trend_context.get("bias", "RANGE")
+    trend_strength = float(trend_context.get("strength", 0.0) or 0.0)
+    has_sl = float(position.sl or 0.0) > 0
+    if not has_sl:
+        risk_note = f"PASANG SL; referensi darurat {emergency_sl}"
+    else:
+        risk_note = "SL tersedia"
+    if trend_bias == direction and trend_strength >= TREND_MIN_SCORE:
+        action = "HOLD_TREND"
+        note = f"Posisi searah tren {trend_bias} ({trend_context.get('score', 0):+.1f})."
+    elif trend_bias in ("BUY", "SELL") and trend_bias != direction and trend_strength >= TREND_COUNTER_BLOCK_SCORE:
+        action = "EXIT_OR_TIGHTEN"
+        note = f"Posisi melawan tren {trend_bias} ({trend_context.get('score', 0):+.1f})."
+    else:
+        action = "MANAGE_RANGE"
+        note = "Trend H1/H4 belum dominan; kelola sebagai posisi range."
+    return action, f"{note} {risk_note}"
+
+
+def sync_manual_positions():
+    """Track magic-0 positions separately and learn after they close."""
+    if (
+        not TRACK_MANUAL_POSITIONS
+        or using_oanda_provider()
+        or using_yfinance_provider()
+        or not mt5
+    ):
+        return {"active": [], "closed": 0, "status": "DISABLED"}
+
+    previous = load_manual_position_state()
+    current = {}
+    active_rows = []
+    positions = [
+        position
+        for position in (mt5.positions_get() or [])
+        if int(getattr(position, "magic", 0) or 0) == 0
+    ]
+    for position in positions:
+        ticket = str(position.ticket)
+        direction = "BUY" if int(position.type) == getattr(mt5, "POSITION_TYPE_BUY", 0) else "SELL"
+        trend = build_multi_timeframe_trend(position.symbol)
+        symbol_info = data_symbol_info(position.symbol)
+        rates = data_copy_rates_from_pos(position.symbol, timeframe_value(DEFAULT_SCAN_TIMEFRAME), 1, SCAN_BARS)
+        emergency_sl = np.nan
+        if rates is not None and len(rates) >= 100:
+            frame = pd.DataFrame(rates)
+            adx = calculate_wilder_adx(frame, 14)
+            frame["atr"] = adx["atr"]
+            frame["P_pure"] = calculate_hma(frame["close"], 20)
+            sl_pips, _ = calculate_dynamic_stop_loss_pips(
+                position.symbol,
+                frame.dropna().iloc[-1],
+                fetch_market_microstructure(position.symbol),
+                "TREND" if float(adx["adx"].iloc[-1] or 0) >= 20 else "RANGE",
+            )
+            distance = pips_to_price(sl_pips, symbol_info)
+            emergency_sl = round_symbol_price(
+                float(position.price_current) - distance if direction == "BUY" else float(position.price_current) + distance,
+                symbol_info,
+            )
+        action, recommendation = manual_position_recommendation(position, trend, emergency_sl)
+        opened = previous.get(ticket, {})
+        row = {
+            "Ticket": int(position.ticket),
+            "Identifier": int(getattr(position, "identifier", position.ticket) or position.ticket),
+            "Open_Time": opened.get(
+                "Open_Time",
+                datetime.fromtimestamp(int(position.time)).astimezone().isoformat(),
+            ),
+            "Symbol": position.symbol,
+            "Direction": direction,
+            "Volume": float(position.volume),
+            "Entry": float(position.price_open),
+            "Current": float(position.price_current),
+            "SL": float(position.sl or 0.0),
+            "TP": float(position.tp or 0.0),
+            "Profit": float(position.profit),
+            "Swap": float(position.swap),
+            "Trend_Bias": trend.get("bias", "RANGE"),
+            "Trend_Score": trend.get("score", 0.0),
+            "Trend_Alignment": "ALIGNED" if trend.get("bias") == direction else "COUNTER" if trend.get("bias") in ("BUY", "SELL") else "RANGE",
+            "H1_Score": trend.get("h1", {}).get("score", 0.0),
+            "H4_Score": trend.get("h4", {}).get("score", 0.0),
+            "Emergency_SL": emergency_sl,
+            "Action": action,
+            "Recommendation": recommendation,
+            "Last_Seen": datetime.now().astimezone().isoformat(),
+        }
+        current[ticket] = row
+        active_rows.append(row)
+
+    closed_rows = []
+    for ticket, tracked in previous.items():
+        if ticket in current:
+            continue
+        deal = latest_position_close_deal(tracked.get("Identifier", ticket))
+        if deal is None:
+            continue
+        profit = float(getattr(deal, "profit", 0.0) or 0.0)
+        swap = float(getattr(deal, "swap", 0.0) or 0.0)
+        commission = float(getattr(deal, "commission", 0.0) or 0.0)
+        net_profit = profit + swap + commission
+        close_time = datetime.fromtimestamp(int(getattr(deal, "time", 0) or 0)).astimezone()
+        closed_rows.append(
+            {
+                "Position_Id": tracked.get("Identifier", ticket),
+                "Ticket": tracked.get("Ticket", ticket),
+                "Open_Time": tracked.get("Open_Time"),
+                "Close_Time": close_time.isoformat(),
+                "Symbol": tracked.get("Symbol", getattr(deal, "symbol", "")),
+                "Direction": tracked.get("Direction", "UNKNOWN"),
+                "Volume": tracked.get("Volume", getattr(deal, "volume", 0.0)),
+                "Entry": tracked.get("Entry", np.nan),
+                "Exit": float(getattr(deal, "price", 0.0) or 0.0),
+                "Profit": profit,
+                "Swap": swap,
+                "Commission": commission,
+                "Net_Profit": net_profit,
+                "Result": "WIN" if net_profit > 0 else "LOSS" if net_profit < 0 else "BREAKEVEN",
+                "Trend_Bias_At_Open": tracked.get("Trend_Bias", "RANGE"),
+                "Trend_Score_At_Open": tracked.get("Trend_Score", 0.0),
+                "Trend_Alignment_At_Open": tracked.get("Trend_Alignment", "RANGE"),
+                "Had_SL": float(tracked.get("SL", 0.0) or 0.0) > 0,
+                "Source": "MANUAL",
+            }
+        )
+    append_manual_trades(closed_rows)
+    if closed_rows:
+        update_manual_performance_summary()
+    save_manual_position_state(current)
+    return {
+        "active": active_rows,
+        "closed": len(closed_rows),
+        "status": "OK",
+    }
+
+
+def build_manual_counter_candidates(manual_sync):
+    """Create small market hedges when manual exposure strongly opposes H1/H4."""
+    if not MANUAL_COUNTER_ENABLED or not manual_sync.get("active"):
+        return pd.DataFrame()
+    rows = []
+    for position in manual_sync["active"]:
+        trend_bias = position.get("Trend_Bias", "RANGE")
+        manual_direction = position.get("Direction", "UNKNOWN")
+        trend_strength = abs(float(position.get("Trend_Score", 0.0) or 0.0))
+        if (
+            trend_bias not in ("BUY", "SELL")
+            or trend_bias == manual_direction
+            or trend_strength < MANUAL_COUNTER_MIN_TREND_SCORE
+        ):
+            continue
+        symbol = position["Symbol"]
+        rates = data_copy_rates_from_pos(symbol, timeframe_value(DEFAULT_SCAN_TIMEFRAME), 1, SCAN_BARS)
+        if rates is None or len(rates) < 100:
+            continue
+        frame = pd.DataFrame(rates)
+        frame["P_pure"] = calculate_hma(frame["close"], 20)
+        adx = calculate_wilder_adx(frame, 14)
+        for column in adx:
+            frame[column] = adx[column]
+        frame = frame.dropna()
+        if frame.empty:
+            continue
+        last = frame.iloc[-1]
+        micro = fetch_market_microstructure(symbol)
+        regime = "TREND" if float(last["adx"]) >= 20 else "RANGE"
+        sl_pips, sl_model = calculate_dynamic_stop_loss_pips(symbol, last, micro, regime)
+        tp_pips, _, _ = calculate_dynamic_take_profit_pips(
+            symbol,
+            last,
+            micro,
+            regime,
+            trend_bias,
+            sl_pips,
+        )
+        target_rr = TREND_MARKET_MIN_RR + min(trend_strength / 200.0, 0.50)
+        tp_pips = max(tp_pips, sl_pips * target_rr)
+        rr_ratio = tp_pips / sl_pips if sl_pips else 0.0
+        symbol_info = data_symbol_info(symbol)
+        entry = float(micro["Ask"] if trend_bias == "BUY" else micro["Bid"])
+        sl_distance = pips_to_price(sl_pips, symbol_info)
+        tp_distance = pips_to_price(tp_pips, symbol_info)
+        sl_price = entry - sl_distance if trend_bias == "BUY" else entry + sl_distance
+        tp_price = entry + tp_distance if trend_bias == "BUY" else entry - tp_distance
+        lot = min(
+            max(float(position["Volume"]) * MANUAL_COUNTER_LOT_FACTOR, 0.01),
+            MANUAL_COUNTER_MAX_LOT,
+            EA_MAX_LOT,
+        )
+        quality = float(np.clip(55 + trend_strength * 0.35, 0, 95))
+        confidence = int(np.clip(60 + trend_strength * 0.30, 60, 95))
+        rows.append(
+            {
+                "Symbol": symbol,
+                "Asset_Class": classify_symbol(symbol),
+                "Timeframe": DEFAULT_SCAN_TIMEFRAME,
+                "Exit_Mode": "DYNAMIC_SL_TP",
+                "Direction": trend_bias,
+                "Projected_Direction": trend_bias,
+                "Signal_Type": "MANUAL_COUNTER",
+                "Setup_Source": "MANUAL_COUNTER_TREND",
+                "Setup_Maturity": min(trend_strength / 70.0, 1.25),
+                "Projection_Score": min(trend_strength / 100.0, 1.0),
+                "Regime": regime,
+                "Trend_Bias": trend_bias,
+                "Trend_Score": float(position["Trend_Score"]),
+                "Trend_Strength": trend_strength,
+                "Trend_Alignment": "ALIGNED",
+                "Close": entry,
+                "Entry_Price": round_symbol_price(entry, symbol_info),
+                "Entry_Model": "MARKET_COUNTER_MANUAL",
+                "Preferred_Order_Type": trend_bias,
+                "SL_Pips": round(sl_pips, 1),
+                "TP_Pips": round(tp_pips, 1),
+                "SL_Price": round_symbol_price(sl_price, symbol_info),
+                "TP_Price": round_symbol_price(tp_price, symbol_info),
+                "SL_Points": pips_to_points(sl_pips, symbol_info),
+                "TP_Points": pips_to_points(tp_pips, symbol_info),
+                "SL_Model": sl_model,
+                "TP_Model": "TREND_CONTINUATION",
+                "RR_Ratio": round(rr_ratio, 2),
+                "Dynamic_Lot": round(lot, 2),
+                "Confidence": confidence,
+                "Accuracy_Quality_Score": round(quality, 2),
+                "Accuracy_Gate": "PASS",
+                "Accuracy_Gate_Reason": "",
+                "Historical_Status": "MANUAL_COUNTER",
+                "Trade_Allowed": True,
+                "Risk_Mode": "NORMAL",
+                "Action_Signal": "EKSEKUSI_TERBATAS",
+                "Spread_Pips": micro["Spread_Pips"],
+                "Slippage_Est_Pips": estimate_slippage_pips(lot, micro),
+                "Liquidity_Status": "VOID" if micro["Liquidity_Void"] else "STRESSED" if micro["Liquidity_Stress"] >= 0.75 else "LAMINAR",
+                "ZF_Score": 0.0,
+                "Drift": 0.0,
+                "Manual_Position_Ticket": position["Ticket"],
+                "User_Recommendation": (
+                    f"Hedge market {trend_bias} terhadap posisi manual {manual_direction}; "
+                    f"manual tetap dibiarkan."
+                ),
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def update_daily_learning_summary(closed_df):
@@ -1853,6 +2395,22 @@ def run_self_healing_optimizer(force=False):
         return state, "NO_LIVE_DATA"
 
     symbols_state = state.setdefault("symbols", {})
+    manual_stats = {}
+    if MANUAL_TRADES_PATH.exists():
+        try:
+            manual_df = pd.read_csv(MANUAL_TRADES_PATH)
+            for manual_symbol, manual_group in manual_df.groupby("Symbol"):
+                if len(manual_group) < MANUAL_LEARNING_MIN_TRADES:
+                    continue
+                net = pd.to_numeric(manual_group["Net_Profit"], errors="coerce").fillna(0.0)
+                manual_stats[manual_symbol] = {
+                    "trades": int(len(manual_group)),
+                    "expectancy_proxy": float(np.sign(net).mean()),
+                    "win_rate": float((net > 0).mean() * 100),
+                }
+        except (OSError, pd.errors.EmptyDataError):
+            manual_stats = {}
+
     for symbol, group in closed_df.groupby("Symbol"):
         signal_count = int(len(group))
         wins = int((group["Result"] == "WIN").sum())
@@ -1868,6 +2426,16 @@ def run_self_healing_optimizer(force=False):
         projected_group = group[group.get("Signal_Type", "") == "PROJECTED"] if "Signal_Type" in group.columns else pd.DataFrame()
         projected_signals = int(len(projected_group))
         projected_expectancy = float(projected_group["R_Result"].mean()) if projected_signals and "R_Result" in projected_group.columns else 0.0
+        manual_stat = manual_stats.get(symbol)
+        if manual_stat:
+            expectancy = (
+                expectancy * (1.0 - MANUAL_LEARNING_WEIGHT)
+                + manual_stat["expectancy_proxy"] * MANUAL_LEARNING_WEIGHT
+            )
+            win_rate = (
+                win_rate * (1.0 - MANUAL_LEARNING_WEIGHT)
+                + manual_stat["win_rate"] * MANUAL_LEARNING_WEIGHT
+            )
 
         if signal_count < OPTIMIZER_MIN_LIVE_SIGNALS:
             mode = "LEARNING"
@@ -1907,6 +2475,8 @@ def run_self_healing_optimizer(force=False):
             "projected_signals": projected_signals,
             "projected_expectancy_r": round(projected_expectancy, 4),
             "loss_streak": loss_streak,
+            "manual_trades": manual_stat["trades"] if manual_stat else 0,
+            "manual_learning_weight": MANUAL_LEARNING_WEIGHT if manual_stat else 0.0,
             "params": params,
         }
 
@@ -2068,7 +2638,17 @@ def update_live_signal_tracker(buy_pool, sell_pool, scan_context=None):
                 "Optimizer_Mode": row.get("Optimizer_Mode", ""),
                 "Historical_Status": row.get("Historical_Status", ""),
                 "ZF_Score": float(row["ZF_Score"]),
+                "ZF_Core_Score": float(row.get("ZF_Core_Score", 0.0) or 0.0),
                 "Drift": float(row["Drift"]),
+                "Tick_Count": int(row.get("Tick_Count", 0) or 0),
+                "Tick_Quality": float(row.get("Tick_Quality", 0.0) or 0.0),
+                "Tick_Pressure": float(row.get("Tick_Pressure", 0.0) or 0.0),
+                "Tick_Bias": row.get("Tick_Bias", "NEUTRAL"),
+                "Tick_Momentum_Bps": float(row.get("Tick_Momentum_Bps", 0.0) or 0.0),
+                "Tick_Spread_Shock": bool(row.get("Tick_Spread_Shock", False)),
+                "OKX_Book_Imbalance": float(row.get("OKX_Book_Imbalance", 0.0) or 0.0),
+                "OKX_Taker_Imbalance": float(row.get("OKX_Taker_Imbalance", 0.0) or 0.0),
+                "OKX_Flow_Bias": row.get("OKX_Flow_Bias", "NEUTRAL"),
                 "News_Risk": scan_context.get("news_status", ""),
                 "DXY": scan_context.get("macro", {}).get("DXY", 0.0),
                 "US10Y": scan_context.get("macro", {}).get("US10Y", 0.0),
@@ -2221,12 +2801,23 @@ def apply_risk_controls(memory_df, news_status):
     circuit_breaker = (risk_df["ZF_Score"] >= ZF_CIRCUIT_BREAKER) & circuit_confirmation
     cold_mode = high_news_risk & (risk_df["ZF_Score"] >= ZF_COLD_MODE_FLOOR)
     memory_lock = critical_memory & risk_df["Direction"].isin(["BUY", "SELL"])
-    max_spread_limit = risk_df.get("Optimizer_Max_Spread_Pips", MAX_SPREAD_PIPS)
-    max_slippage_limit = risk_df.get("Optimizer_Max_Slippage_Pips", MAX_SLIPPAGE_PIPS)
+    max_spread_limit = risk_df.get(
+        "Asset_Max_Spread_Pips",
+        risk_df.get("Optimizer_Max_Spread_Pips", MAX_SPREAD_PIPS),
+    )
+    max_slippage_limit = risk_df.get(
+        "Asset_Max_Slippage_Pips",
+        risk_df.get("Optimizer_Max_Slippage_Pips", MAX_SLIPPAGE_PIPS),
+    )
     confidence_floor = risk_df.get("Optimizer_Confidence_Floor", 0)
     liquidity_lock = risk_df["Liquidity_Void"] | (risk_df["Spread_Pips"] > max_spread_limit)
     slippage_lock = risk_df["Slippage_Est_Pips"] > max_slippage_limit
-    optimizer_confidence_lock = risk_df["Direction"].isin(["BUY", "SELL"]) & (risk_df["Confidence"] < confidence_floor)
+    required_confidence = np.where(
+        (risk_df.get("Signal_Type", "") == "PROJECTED") & PROJECTED_EXECUTION_ENABLED,
+        np.minimum(confidence_floor, PROJECTED_EXECUTION_MIN_CONFIDENCE),
+        confidence_floor,
+    )
+    optimizer_confidence_lock = risk_df["Direction"].isin(["BUY", "SELL"]) & (risk_df["Confidence"] < required_confidence)
     adverse_depth_lock = (
         risk_df["Depth_Available"]
         & (
@@ -2343,7 +2934,12 @@ def build_user_recommendation(row):
         if historical_status == "LEARNING":
             return f"Pantau {direction}. Mode provider API masih mengumpulkan bukti live, gunakan simulasi/lot kecil dulu.{history_note}"
         return f"Pantau {direction}. Ini proyeksi 30 menit, tunggu konfirmasi harga sebelum entry.{history_note}"
-    if action == "EKSEKUSI" and direction in ("BUY", "SELL"):
+    if action == "EKSEKUSI_PULSE" and direction in ("BUY", "SELL"):
+        return (
+            f"ZF Pulse {direction}: entry mikro searah denyut pasar, lot kecil dan TP cepat."
+            f" Cadence dan batas harian tetap aktif.{history_note}"
+        )
+    if action in ("EKSEKUSI", "EKSEKUSI_TERBATAS") and direction in ("BUY", "SELL"):
         if historical_status == "AVOID":
             return f"Sinyal {direction} muncul, tetapi riwayat pair negatif. Entry tidak disarankan.{history_note}"
         if historical_status == "UNVALIDATED":
@@ -2447,6 +3043,116 @@ def compute_currency_strength(mifx_symbols, symbol_timeframes=None):
     return strength_map
 
 
+def build_multi_timeframe_trend(symbol_name):
+    """Use closed H1/H4 bars as the directional compass for the execution timeframe."""
+    if not TREND_ENGINE_ENABLED:
+        return {
+            "bias": "RANGE",
+            "score": 0.0,
+            "strength": 0.0,
+            "alignment": "DISABLED",
+            "h1": {},
+            "h4": {},
+        }
+    states = {}
+    for timeframe_name, count in (("H1", 320), ("H4", 260)):
+        rates = data_copy_rates_from_pos(symbol_name, timeframe_value(timeframe_name), 1, count)
+        states[timeframe_name.lower()] = calculate_trend_state(rates) if rates is not None else {
+            "score": 0.0,
+            "bias": "RANGE",
+            "strength": 0.0,
+            "structure": "UNKNOWN",
+            "adx": 0.0,
+        }
+    h1_score = float(states["h1"].get("score", 0.0) or 0.0)
+    h4_score = float(states["h4"].get("score", 0.0) or 0.0)
+    combined = float(np.clip((h4_score * 0.58) + (h1_score * 0.42), -100, 100))
+    if combined >= TREND_MIN_SCORE:
+        bias = "BUY"
+    elif combined <= -TREND_MIN_SCORE:
+        bias = "SELL"
+    else:
+        bias = "RANGE"
+    h1_bias = states["h1"].get("bias", "RANGE")
+    h4_bias = states["h4"].get("bias", "RANGE")
+    alignment = "ALIGNED" if h1_bias == h4_bias and h1_bias in ("BUY", "SELL") else "MIXED"
+    return {
+        "bias": bias,
+        "score": round(combined, 2),
+        "strength": round(abs(combined), 2),
+        "alignment": alignment,
+        "h1": states["h1"],
+        "h4": states["h4"],
+    }
+
+
+def build_frugal_asset_trend(asset_class, trend_context, last_row, micro, crypto_context=None):
+    """Small, auditable score for Gold/Crypto without stacking extra indicators."""
+    def finite_float(value, default=0.0):
+        try:
+            parsed = float(value)
+            return parsed if np.isfinite(parsed) else default
+        except (TypeError, ValueError):
+            return default
+
+    close = max(float(last_row.get("close", 0.0) or 0.0), 1e-9)
+    atr = float(last_row.get("atr", 0.0) or 0.0)
+    atr_pct = (atr / close) * 100.0
+    velocity = float(last_row.get("Velocity", 0.0) or 0.0)
+    acceleration = float(last_row.get("Acceleration", 0.0) or 0.0)
+    direction_sign = 1.0 if trend_context.get("bias") == "BUY" else -1.0 if trend_context.get("bias") == "SELL" else 0.0
+    mtf_score = float(trend_context.get("score", 0.0) or 0.0)
+    impulse_score = float(np.clip((velocity / max(atr, 1e-9)) * 18.0, -15, 15))
+    turn_score = float(np.clip((acceleration / max(atr, 1e-9)) * 10.0, -8, 8))
+    spread = float(micro.get("Spread_Pips", 0.0) or 0.0)
+    spread_limit = max(float(micro.get("Max_Spread_Pips", 1.0) or 1.0), 1e-9)
+    cost_penalty = float(np.clip((spread / spread_limit) * 8.0, 0, 10))
+
+    if asset_class == "metal":
+        score = mtf_score * 0.78 + impulse_score * 0.16 + turn_score * 0.06
+        minimum_atr_pct = GOLD_MIN_ATR_PCT
+        context_status = "PRICE_ONLY"
+        external_score = 0.0
+    elif asset_class == "crypto":
+        crypto_context = crypto_context or {}
+        funding_rate = finite_float(crypto_context.get("Funding_Rate"), 0.0)
+        oi_change = finite_float(crypto_context.get("OI_Change_Pct"), 0.0)
+        # Funding is treated as crowding (contrarian); OI confirms the active trend.
+        funding_score = float(np.clip(-funding_rate * 120000.0, -8, 8))
+        oi_score = float(np.clip(oi_change * 1.5, -10, 10)) * direction_sign
+        external_score = funding_score + oi_score
+        score = mtf_score * 0.72 + impulse_score * 0.14 + turn_score * 0.04 + external_score
+        minimum_atr_pct = CRYPTO_MIN_ATR_PCT
+        raw_status = str(crypto_context.get("Status", "UNAVAILABLE"))
+        context_status = "PRICE_ONLY_FALLBACK" if raw_status.startswith("ERROR") or raw_status == "UNAVAILABLE" else raw_status
+    else:
+        return {
+            "score": round(mtf_score, 2),
+            "bias": trend_context.get("bias", "RANGE"),
+            "quality": 0.0,
+            "atr_pct": round(atr_pct, 4),
+            "minimum_atr_pct": 0.0,
+            "volatility_ok": True,
+            "context_status": "STANDARD",
+            "external_score": 0.0,
+        }
+
+    score = float(np.clip(score - np.sign(score) * cost_penalty, -100, 100))
+    bias = "BUY" if score >= ASSET_TREND_MIN_SCORE else "SELL" if score <= -ASSET_TREND_MIN_SCORE else "RANGE"
+    volatility_ok = atr_pct >= minimum_atr_pct
+    quality = float(np.clip(abs(score) * 0.75 + min(atr_pct / max(minimum_atr_pct, 1e-9), 2.0) * 12.5, 0, 100))
+    return {
+        "score": round(score, 2),
+        "bias": bias,
+        "quality": round(quality, 2),
+        "atr_pct": round(atr_pct, 4),
+        "minimum_atr_pct": minimum_atr_pct,
+        "volatility_ok": bool(volatility_ok),
+        "context_status": context_status,
+        "external_score": round(float(external_score), 2),
+    }
+
+
 def symbol_pip_factor(symbol_info):
     """Convert MT5 points to common pip units for most FX symbols."""
     if symbol_info is None:
@@ -2460,10 +3166,100 @@ def safe_book_volume(entry):
     return volume_real if volume_real > 0 else volume
 
 
+def fetch_tick_microstructure(symbol_name, symbol_info):
+    """Summarize recent free MT5 ticks into short-horizon pressure features."""
+    empty = {
+        "Tick_Count": 0,
+        "Tick_Rate_Per_Min": 0.0,
+        "Tick_Quality": 0.0,
+        "Tick_Pressure": 0.0,
+        "Tick_Bias": "NEUTRAL",
+        "Tick_Momentum_Bps": 0.0,
+        "Tick_Spread_P50": np.nan,
+        "Tick_Spread_P90": np.nan,
+        "Tick_Spread_Shock": False,
+        "Tick_Burst_Ratio": 1.0,
+    }
+    if (
+        not TICK_MICRO_ENABLED
+        or using_oanda_provider()
+        or using_yfinance_provider()
+        or not mt5
+        or symbol_info is None
+    ):
+        return empty
+
+    end_time = datetime.now(timezone.utc)
+    start_time = end_time - timedelta(minutes=max(TICK_MICRO_LOOKBACK_MINUTES, 1))
+    try:
+        ticks = mt5.copy_ticks_range(symbol_name, start_time, end_time, mt5.COPY_TICKS_ALL)
+    except Exception:
+        return empty
+    if ticks is None or len(ticks) < 2:
+        return empty
+
+    bid = np.asarray(ticks["bid"], dtype=float)
+    ask = np.asarray(ticks["ask"], dtype=float)
+    valid = (bid > 0) & (ask > bid)
+    if valid.sum() < 2:
+        return empty
+    bid = bid[valid]
+    ask = ask[valid]
+    mid = (bid + ask) / 2.0
+    changes = np.diff(mid)
+    nonzero = changes[np.abs(changes) > 0]
+    up = int((nonzero > 0).sum())
+    down = int((nonzero < 0).sum())
+    pressure = (up - down) / max(up + down, 1)
+    momentum_bps = ((mid[-1] / mid[0]) - 1.0) * 10000 if mid[0] > 0 else 0.0
+
+    point = float(getattr(symbol_info, "point", 0.0) or 0.0)
+    pip_factor = symbol_pip_factor(symbol_info)
+    spreads = (ask - bid) / point / pip_factor if point > 0 else np.array([])
+    spread_p50 = float(np.nanpercentile(spreads, 50)) if spreads.size else np.nan
+    spread_p90 = float(np.nanpercentile(spreads, 90)) if spreads.size else np.nan
+    spread_shock = bool(
+        spreads.size
+        and np.isfinite(spread_p50)
+        and spreads[-1] > max(spread_p50 * 2.0, spread_p90)
+    )
+
+    tick_times = np.asarray(ticks["time_msc"], dtype=np.int64)[valid]
+    midpoint_time = tick_times[0] + (tick_times[-1] - tick_times[0]) // 2
+    first_half = int((tick_times <= midpoint_time).sum())
+    second_half = int((tick_times > midpoint_time).sum())
+    burst_ratio = second_half / max(first_half, 1)
+    quality = min(len(mid) / max(TICK_MICRO_MIN_TICKS, 1), 1.0)
+    combined_pressure = float(
+        np.clip(
+            pressure * 0.65 + np.tanh(momentum_bps / 3.0) * 0.35,
+            -1,
+            1,
+        )
+    )
+    bias = "BUY" if combined_pressure > 0.10 else "SELL" if combined_pressure < -0.10 else "NEUTRAL"
+    return {
+        "Tick_Count": int(len(mid)),
+        "Tick_Rate_Per_Min": float(len(mid) / max(TICK_MICRO_LOOKBACK_MINUTES, 1)),
+        "Tick_Quality": float(quality),
+        "Tick_Pressure": combined_pressure,
+        "Tick_Bias": bias,
+        "Tick_Momentum_Bps": float(momentum_bps),
+        "Tick_Spread_P50": spread_p50,
+        "Tick_Spread_P90": spread_p90,
+        "Tick_Spread_Shock": spread_shock,
+        "Tick_Burst_Ratio": float(burst_ratio),
+    }
+
+
 def fetch_market_microstructure(symbol_name):
     """Read provider tick, spread, and optional Depth of Market as Bab 3 inputs."""
     symbol_info = data_symbol_info(symbol_name)
     tick = data_symbol_info_tick(symbol_name)
+    asset_class = classify_symbol(symbol_name)
+    execution_limits = ASSET_EXECUTION_LIMITS.get(asset_class, ASSET_EXECUTION_LIMITS["other"])
+    max_spread_pips = execution_limits["max_spread_pips"]
+    max_slippage_pips = execution_limits["max_slippage_pips"]
 
     point = float(symbol_info.point) if symbol_info and symbol_info.point else 0.0
     pip_factor = symbol_pip_factor(symbol_info)
@@ -2472,6 +3268,7 @@ def fetch_market_microstructure(symbol_name):
     mid_price = (bid + ask) / 2 if bid > 0 and ask > 0 else np.nan
     spread_points = ((ask - bid) / point) if point > 0 and ask > bid else np.nan
     spread_pips = spread_points / pip_factor if pd.notna(spread_points) else np.nan
+    tick_micro = fetch_tick_microstructure(symbol_name, symbol_info)
 
     bid_depth = 0.0
     ask_depth = 0.0
@@ -2499,12 +3296,15 @@ def fetch_market_microstructure(symbol_name):
     total_depth = bid_depth + ask_depth
     depth_imbalance = ((bid_depth - ask_depth) / total_depth) if total_depth > 0 else 0.0
     depth_score = min(total_depth / 100.0, 1.0) if depth_available else 0.0
-    spread_stress = min((spread_pips / SPREAD_STRESS_PIPS), 1.0) if pd.notna(spread_pips) else 1.0
+    spread_stress_reference = max(min(max_spread_pips * 0.65, max_spread_pips), SPREAD_STRESS_PIPS)
+    spread_stress = min((spread_pips / spread_stress_reference), 1.0) if pd.notna(spread_pips) else 1.0
     liquidity_stress = float(np.clip((spread_stress * 0.70) + ((1.0 - depth_score) * 0.30), 0, 1))
+    if tick_micro["Tick_Spread_Shock"]:
+        liquidity_stress = min(liquidity_stress + 0.15, 1.0)
     lambda_liquidity = float(np.clip(0.10 + liquidity_stress + abs(depth_imbalance) * 0.50, 0.10, 2.50))
 
     liquidity_void = False
-    if pd.notna(spread_pips) and spread_pips > MAX_SPREAD_PIPS:
+    if pd.notna(spread_pips) and spread_pips > max_spread_pips:
         liquidity_void = True
     if depth_available and total_depth < MIN_DEPTH_VOLUME:
         liquidity_void = True
@@ -2525,6 +3325,9 @@ def fetch_market_microstructure(symbol_name):
         "Liquidity_Stress": liquidity_stress,
         "Lambda_Liquidity": lambda_liquidity,
         "Liquidity_Void": liquidity_void,
+        "Max_Spread_Pips": max_spread_pips,
+        "Max_Slippage_Pips": max_slippage_pips,
+        **tick_micro,
     }
 
 
@@ -2537,7 +3340,9 @@ def estimate_slippage_pips(dynamic_lot, micro):
     if total_depth > 0:
         depth_penalty = min(dynamic_lot / max(total_depth, 0.01), 2.0)
     else:
-        depth_penalty = 0.75
+        # Most retail MT5 symbols do not expose a usable order book.
+        # Missing DOM is uncertainty, not proof of severe slippage.
+        depth_penalty = 0.20
 
     return float(round(base_slippage * (1.0 + depth_penalty), 2))
 
@@ -2572,6 +3377,32 @@ def round_symbol_price(price, symbol_info):
         return np.nan
     digits = int(getattr(symbol_info, "digits", 5) or 5) if symbol_info else 5
     return round(float(price), digits)
+
+
+def calculate_risk_based_lot(symbol_info, stop_loss_pips, money_at_risk):
+    """Calculate lot from broker tick economics instead of assuming $10/pip."""
+    if symbol_info is None or stop_loss_pips <= 0 or money_at_risk <= 0:
+        return 0.0
+    stop_distance = pips_to_price(stop_loss_pips, symbol_info)
+    tick_size = float(getattr(symbol_info, "trade_tick_size", 0.0) or 0.0)
+    tick_value = float(
+        getattr(symbol_info, "trade_tick_value_loss", 0.0)
+        or getattr(symbol_info, "trade_tick_value", 0.0)
+        or 0.0
+    )
+    if tick_size > 0 and tick_value > 0:
+        risk_per_lot = (stop_distance / tick_size) * tick_value
+    else:
+        pip_factor = symbol_pip_factor(symbol_info)
+        risk_per_lot = stop_loss_pips * 10.0 / max(pip_factor, 1.0)
+    if risk_per_lot <= 0:
+        return 0.0
+    raw_lot = money_at_risk / risk_per_lot
+    min_lot = float(getattr(symbol_info, "volume_min", 0.01) or 0.01)
+    max_lot = float(getattr(symbol_info, "volume_max", EA_MAX_LOT) or EA_MAX_LOT)
+    lot_step = float(getattr(symbol_info, "volume_step", 0.01) or 0.01)
+    normalized = np.floor((raw_lot + 1e-12) / lot_step) * lot_step
+    return float(np.clip(normalized, min_lot, min(max_lot, EA_MAX_LOT)))
 
 
 def fmt_value(value, decimals=2, suffix=""):
@@ -2716,6 +3547,22 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
     """
     try:
         optimizer_params, optimizer_mode = get_optimizer_params(symbol_name, optimizer_state or {})
+        calibration_item = CALIBRATION_PROFILE.get(symbol_name, {})
+        calibrated_params = calibration_item.get("params", {}) if isinstance(calibration_item, dict) else {}
+        for key in (
+            "atr_sl_multiplier",
+            "drift_sl_multiplier",
+            "atr_tp_multiplier",
+            "drift_tp_multiplier",
+            "min_reward_risk",
+        ):
+            if key in calibrated_params:
+                optimizer_params[key] = float(calibrated_params[key])
+        threshold_sigma = float(calibrated_params.get("threshold_sigma", 1.50))
+        confirmation_bars = max(int(calibrated_params.get("confirmation_bars", 1)), 1)
+        calibrated_zf_floor = float(calibrated_params.get("zf_floor", MIN_EXECUTION_ZF_SCORE))
+        fibo_buy_max = float(calibrated_params.get("fibo_buy_max", 0.70))
+        fibo_sell_min = float(calibrated_params.get("fibo_sell_min", 0.30))
         kelly_multiplier, full_kelly = fractional_kelly_multiplier(symbol_name, optimizer_state or {})
         scan_timeframe = normalize_timeframe_name(scan_timeframe)
         scan_tf_value = timeframe_value(scan_timeframe)
@@ -2725,6 +3572,7 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
         # --------------------------------------------------------------------------
         micro = fetch_market_microstructure(symbol_name)
         asset_class = classify_symbol(symbol_name)
+        trend_context = build_multi_timeframe_trend(symbol_name)
         crypto_context = OKX_PROVIDER.market_context(symbol_name) if asset_class == "crypto" else {
             "Status": "NOT_CRYPTO",
             "Instrument": "",
@@ -2735,8 +3583,13 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
             "OI_Change_Pct": np.nan,
             "External_Stress": 0.0,
             "Funding_Bias": "NEUTRAL",
+            "Book_Imbalance": 0.0,
+            "Book_Depth_USD": 0.0,
+            "Taker_Imbalance": 0.0,
+            "Flow_Bias": "NEUTRAL",
         }
-        rates = data_copy_rates_from_pos(symbol_name, scan_tf_value, 0, SCAN_BARS)
+        # Position 1 deliberately excludes the currently forming candle.
+        rates = data_copy_rates_from_pos(symbol_name, scan_tf_value, 1, SCAN_BARS)
         if rates is None or len(rates) < 100:
             return None
         
@@ -2760,8 +3613,8 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
         # Lorong Pagar Kelayakan Statistik (2-Sigma)
         df['Integral_Mean'] = df['Decay_Integral'].rolling(window=50).mean()
         df['Integral_Std'] = df['Decay_Integral'].rolling(window=50).std()
-        df['Upper_Threshold'] = df['Integral_Mean'] + (2 * df['Integral_Std'])
-        df['Lower_Threshold'] = df['Integral_Mean'] - (2 * df['Integral_Std'])
+        df['Upper_Threshold'] = df['Integral_Mean'] + (threshold_sigma * df['Integral_Std'])
+        df['Lower_Threshold'] = df['Integral_Mean'] - (threshold_sigma * df['Integral_Std'])
         
         # Filter Volume Abnormal & ZF-Score
         df['V_avg'] = df['tick_volume'].rolling(window=20).mean()
@@ -2773,6 +3626,14 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
         safe_tick_volume = df['tick_volume'].replace(0, np.nan)
         safe_drift_std = df['drift_std'].replace(0, np.nan)
         volume_component = np.clip(df['V_abs'] / safe_tick_volume, 0, 1)
+        # Formula literal Buku Besar Bab 4.3. Karena tick_volume MT5 bukan
+        # total volume DOM, nilai ini adalah proxy transparan dan tidak
+        # menggantikan ZF_Score operasional yang sudah dikalibrasi.
+        df['ZF_Core_Score'] = np.clip(
+            volume_component * np.tanh(df['D_res'].clip(lower=0)),
+            0,
+            1,
+        )
         drift_zscore = ((df['D_res'] - df['drift_mean']) / safe_drift_std).abs()
         drift_component = np.clip(drift_zscore / ZF_DRIFT_ZSCORE_SCALE, 0, 1)
         liquidity_component = micro["Liquidity_Stress"]
@@ -2793,14 +3654,15 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
             )
         
         # Market Regime Engine (ATR & ADX tetap dipertahankan)
-        df['tr'] = np.maximum(df['high'] - df['low'], np.maximum(abs(df['high'] - df['close'].shift(1)), abs(df['low'] - df['close'].shift(1))))
-        df['atr'] = df['tr'].rolling(window=14).mean()
-        df['plus_dm'] = np.where((df['high'] - df['high'].shift(1)) > (df['low'].shift(1) - df['low']), np.maximum(df['high'] - df['high'].shift(1), 0), 0)
-        df['plus_di'] = 100 * (df['plus_dm'].rolling(window=14).mean() / df['atr'])
-        df['adx'] = abs(df['plus_di'] - 20)
+        adx_frame = calculate_wilder_adx(df, period=14)
+        for adx_column in adx_frame.columns:
+            df[adx_column] = adx_frame[adx_column]
         df['Velocity'] = df['close'].diff()
         df['Acceleration'] = df['Velocity'].diff()
-        df['Inflection_Detected'] = np.sign(df['Acceleration']) != np.sign(df['Acceleration'].shift(1))
+        acceleration_scale = df['Acceleration'].abs().rolling(window=20).median().replace(0, np.nan)
+        near_zero_acceleration = df['Acceleration'].abs() <= acceleration_scale * 0.20
+        acceleration_zero_cross = np.sign(df['Acceleration']) != np.sign(df['Acceleration'].shift(1))
+        df['Inflection_Detected'] = (near_zero_acceleration | acceleration_zero_cross).fillna(False)
         df['Swing_High'] = df['high'].rolling(window=FIBO_LOOKBACK_BARS, min_periods=20).max()
         df['Swing_Low'] = df['low'].rolling(window=FIBO_LOOKBACK_BARS, min_periods=20).min()
         fib_range = (df['Swing_High'] - df['Swing_Low']).replace(0, np.nan)
@@ -2817,12 +3679,23 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
         last_idx = df.index[-1]
         prev_idx = df.index[-2]
         last_row = df.iloc[-1]
+        asset_trend = build_frugal_asset_trend(
+            asset_class,
+            trend_context,
+            last_row,
+            micro,
+            crypto_context,
+        )
         
-        is_buy_locked = (df.loc[last_idx, 'Decay_Integral'] < df.loc[last_idx, 'Lower_Threshold']) and \
-                            (df.loc[prev_idx, 'Decay_Integral'] < df.loc[prev_idx, 'Lower_Threshold'])
-                        
-        is_sell_locked = (df.loc[last_idx, 'Decay_Integral'] > df.loc[last_idx, 'Upper_Threshold']) and \
-                             (df.loc[prev_idx, 'Decay_Integral'] > df.loc[prev_idx, 'Upper_Threshold'])
+        confirmation_window = df.tail(confirmation_bars)
+        is_buy_locked = bool(
+            len(confirmation_window) == confirmation_bars
+            and (confirmation_window['Decay_Integral'] < confirmation_window['Lower_Threshold']).all()
+        )
+        is_sell_locked = bool(
+            len(confirmation_window) == confirmation_bars
+            and (confirmation_window['Decay_Integral'] > confirmation_window['Upper_Threshold']).all()
+        )
         
         # --------------------------------------------------------------------------
         # SENSOR EKSEKUSI (M30 TUNGGAL)
@@ -2839,24 +3712,194 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
         elif projected_direction in ("BUY", "SELL"):
             direction = projected_direction
             signal_type = "PROJECTED"
+
+        setup_source = "RESONANCE"
+        if asset_class in ("metal", "crypto"):
+            trend_bias = asset_trend["bias"]
+            trend_score = float(asset_trend["score"])
+        else:
+            trend_bias = trend_context["bias"]
+            trend_score = float(trend_context["score"])
+        trend_strength = abs(trend_score)
+
+        # Strong H1/H4 trends can create a continuation setup while M15 pulls
+        # back toward P_pure. Resonance remains the timing sensor.
+        if direction == "NEUTRAL" and trend_bias in ("BUY", "SELL") and trend_strength >= TREND_STRONG_SCORE:
+            pullback_zf_floor = max(calibrated_zf_floor - 0.10, 0.35)
+            m15_di_aligned = (
+                trend_bias == "BUY" and last_row["plus_di"] > last_row["minus_di"]
+            ) or (
+                trend_bias == "SELL" and last_row["minus_di"] > last_row["plus_di"]
+            )
+            pullback_location = (
+                trend_bias == "BUY" and last_row["close"] <= last_row["P_pure"]
+            ) or (
+                trend_bias == "SELL" and last_row["close"] >= last_row["P_pure"]
+            )
+            momentum_turn = (
+                trend_bias == "BUY" and last_row["Acceleration"] > 0
+            ) or (
+                trend_bias == "SELL" and last_row["Acceleration"] < 0
+            )
+            if (
+                float(last_row["ZF_Score"]) >= pullback_zf_floor
+                and m15_di_aligned
+                and pullback_location
+                and momentum_turn
+            ):
+                direction = trend_bias
+                signal_type = "PROJECTED"
+                setup_source = "TREND_PULLBACK"
+                setup_maturity = max(setup_maturity, min(trend_strength / 75.0, 1.25))
+                projection_score = max(
+                    projection_score,
+                    min((trend_strength / 100.0) * 0.65 + float(last_row["ZF_Score"]) * 0.35, 1.0),
+                )
+
+        # Direct market continuation: enter when H1/H4 trend is strong and
+        # M15 price, DI and velocity already move in the same direction.
+        if (
+            direction == "NEUTRAL"
+            and TREND_MARKET_ENTRY_ENABLED
+            and trend_bias in ("BUY", "SELL")
+            and trend_strength >= TREND_MARKET_MIN_SCORE
+        ):
+            m15_price_aligned = (
+                trend_bias == "BUY" and last_row["close"] > last_row["P_pure"]
+            ) or (
+                trend_bias == "SELL" and last_row["close"] < last_row["P_pure"]
+            )
+            m15_di_aligned = (
+                trend_bias == "BUY" and last_row["plus_di"] > last_row["minus_di"]
+            ) or (
+                trend_bias == "SELL" and last_row["minus_di"] > last_row["plus_di"]
+            )
+            velocity_aligned = (
+                trend_bias == "BUY" and last_row["Velocity"] > 0
+            ) or (
+                trend_bias == "SELL" and last_row["Velocity"] < 0
+            )
+            not_overextended = (
+                trend_bias == "BUY" and float(last_row["Fibo_Position"]) <= 0.85
+            ) or (
+                trend_bias == "SELL" and float(last_row["Fibo_Position"]) >= 0.15
+            )
+            if (
+                float(last_row["ZF_Score"]) >= TREND_MARKET_MIN_ZF
+                and m15_price_aligned
+                and m15_di_aligned
+                and velocity_aligned
+                and not_overextended
+            ):
+                direction = trend_bias
+                signal_type = "PROJECTED"
+                setup_source = "TREND_CONTINUATION"
+                setup_maturity = max(setup_maturity, min(trend_strength / 70.0, 1.25))
+                projection_score = max(
+                    projection_score,
+                    min((trend_strength / 100.0) * 0.70 + float(last_row["ZF_Score"]) * 0.30, 1.0),
+                )
+
+        # ZF Pulse: a small, frequent participation layer. It follows the
+        # current trend/pressure and leaves exceptional setups to STRICT mode.
+        if (
+            direction == "NEUTRAL"
+            and PULSE_MODE_ENABLED
+            and symbol_name in PULSE_ENABLED_SYMBOLS
+            and trend_bias in ("BUY", "SELL")
+            and trend_strength >= PULSE_MIN_TREND_SCORE
+            and float(last_row["ZF_Score"]) >= PULSE_MIN_ZF_SCORE
+        ):
+            price_aligned = (
+                trend_bias == "BUY" and last_row["close"] >= last_row["P_pure"]
+            ) or (
+                trend_bias == "SELL" and last_row["close"] <= last_row["P_pure"]
+            )
+            pressure_aligned = (
+                trend_bias == "BUY" and last_row["plus_di"] >= last_row["minus_di"]
+            ) or (
+                trend_bias == "SELL" and last_row["minus_di"] >= last_row["plus_di"]
+            )
+            velocity_not_opposed = (
+                trend_bias == "BUY" and last_row["Velocity"] >= -last_row["atr"] * 0.10
+            ) or (
+                trend_bias == "SELL" and last_row["Velocity"] <= last_row["atr"] * 0.10
+            )
+            if price_aligned and pressure_aligned and velocity_not_opposed:
+                direction = trend_bias
+                signal_type = "PULSE"
+                setup_source = "ZF_PULSE"
+                setup_maturity = max(setup_maturity, min(trend_strength / 100.0, 1.0))
+                projection_score = max(
+                    projection_score,
+                    min(trend_strength / 100.0 * 0.75 + float(last_row["ZF_Score"]) * 0.25, 1.0),
+                )
+
+        # Resonance against a strong H1/H4 trend is blocked. In a range the
+        # original mean-reversion behavior remains available.
+        if (
+            direction in ("BUY", "SELL")
+            and trend_bias in ("BUY", "SELL")
+            and direction != trend_bias
+            and trend_strength >= TREND_COUNTER_BLOCK_SCORE
+        ):
+            direction = "NEUTRAL"
+            signal_type = "TREND_BLOCK"
+            setup_source = "COUNTER_TREND_BLOCK"
             
-        regime = "TREND" if last_row['adx'] > 15 else "RANGE"
+        regime = "TREND" if last_row['adx'] >= 20 else "RANGE"
         metal_gate_ok = True
         if asset_class == "metal" and direction in ("BUY", "SELL"):
-            metal_gate_ok = float(last_row['D_res']) >= METAL_MIN_DRIFT
+            metal_gate_ok = (
+                float(last_row['D_res']) >= METAL_MIN_DRIFT
+                and asset_trend["volatility_ok"]
+                and asset_trend["bias"] == direction
+            )
             if METAL_REQUIRE_TREND:
-                metal_gate_ok = metal_gate_ok and regime == "TREND"
+                metal_gate_ok = metal_gate_ok and abs(asset_trend["score"]) >= ASSET_TREND_MIN_SCORE
             if not metal_gate_ok:
                 direction = "NEUTRAL"
                 signal_type = "METAL_RESONANCE_BLOCK"
+        if asset_class == "crypto" and direction in ("BUY", "SELL"):
+            crypto_gate_ok = (
+                asset_trend["volatility_ok"]
+                and asset_trend["bias"] == direction
+                and abs(asset_trend["score"]) >= ASSET_TREND_MIN_SCORE
+            )
+            if not crypto_gate_ok:
+                direction = "NEUTRAL"
+                signal_type = "CRYPTO_TREND_BLOCK"
         fibo_position = float(last_row.get('Fibo_Position', np.nan))
         fibo_aligned = (
-            (direction == "BUY" and pd.notna(fibo_position) and fibo_position <= FIBO_BUY_MAX)
-            or (direction == "SELL" and pd.notna(fibo_position) and fibo_position >= FIBO_SELL_MIN)
+            (direction == "BUY" and pd.notna(fibo_position) and fibo_position <= fibo_buy_max)
+            or (direction == "SELL" and pd.notna(fibo_position) and fibo_position >= fibo_sell_min)
         )
-        active_zf_floor = float(profile_item.get("optimizer_zf_floor", MIN_EXECUTION_ZF_SCORE) or MIN_EXECUTION_ZF_SCORE)
+        if setup_source == "TREND_CONTINUATION":
+            fibo_aligned = True
+        elif setup_source == "ZF_PULSE":
+            fibo_aligned = True
+        active_zf_floor = float(
+            calibrated_zf_floor
+            if calibration_item
+            else profile_item.get("optimizer_zf_floor", MIN_EXECUTION_ZF_SCORE) or MIN_EXECUTION_ZF_SCORE
+        )
+        if setup_source == "TREND_PULLBACK":
+            active_zf_floor = max(active_zf_floor - 0.10, 0.35)
+        elif setup_source == "TREND_CONTINUATION":
+            active_zf_floor = TREND_MARKET_MIN_ZF
+        elif setup_source == "ZF_PULSE":
+            active_zf_floor = PULSE_MIN_ZF_SCORE
+        elif direction in ("BUY", "SELL") and setup_maturity >= STRICT_MIN_PROJECTED_MATURITY and fibo_aligned:
+            # A mature, structurally aligned setup may enter slightly before
+            # the nominal anomaly floor. Quality/risk gates remain active.
+            active_zf_floor = max(active_zf_floor - 0.05, 0.35)
         zf_execution_floor_ok = float(last_row['ZF_Score']) >= active_zf_floor
-        if direction in ("BUY", "SELL") and USE_FIBO_FILTER and not fibo_aligned:
+        if (
+            direction in ("BUY", "SELL")
+            and USE_FIBO_FILTER
+            and setup_source not in ("TREND_CONTINUATION", "ZF_PULSE")
+            and not fibo_aligned
+        ):
             direction = "NEUTRAL"
             signal_type = "FIBO_BLOCK"
         if direction in ("BUY", "SELL") and not zf_execution_floor_ok:
@@ -2873,7 +3916,12 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
         
         # Hitung Kematangan Rasa Percaya Diri (Confidence)
         zf_weight = abs(last_row['ZF_Score']) * 100
-        if signal_type == "PROJECTED":
+        if signal_type == "PULSE":
+            confidence = min(
+                max(int(48 + trend_strength * 0.32 + float(last_row["ZF_Score"]) * 18), 50),
+                82,
+            )
+        elif signal_type == "PROJECTED":
             confidence = min(max(int((projection_score * 45) + (setup_maturity * 25) + 25), 10), 88)
         else:
             confidence = min(max(int(zf_weight * 5 + 50), 10), 98)
@@ -2884,6 +3932,10 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
             confidence -= 15
         elif direction == "SELL" and currency_strength.get(base_curr, 0) > currency_strength.get(quote_curr, 0):
             confidence -= 15
+        if direction in ("BUY", "SELL") and direction == trend_bias:
+            confidence += 8 if trend_context["alignment"] == "ALIGNED" else 4
+        elif direction in ("BUY", "SELL") and trend_bias == "RANGE":
+            confidence -= 3
             
         if direction == "NEUTRAL":
             confidence = 0
@@ -2895,11 +3947,20 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
             confidence = max(confidence - 25, 0)
         elif micro["Liquidity_Stress"] >= 0.75:
             confidence = max(confidence - 10, 0)
+        if direction in ("BUY", "SELL") and micro["Tick_Quality"] >= 0.50:
+            if micro["Tick_Bias"] == direction:
+                confidence = min(confidence + 5, 98)
+            elif micro["Tick_Bias"] not in ("NEUTRAL", direction):
+                confidence = max(confidence - 5, 0)
         if asset_class == "crypto" and direction in ("BUY", "SELL") and crypto_context["Status"] == "OK":
             if crypto_context["Funding_Bias"] == direction:
                 confidence = min(confidence + 5, 98)
             elif crypto_context["Funding_Bias"] not in ("NEUTRAL", direction):
                 confidence = max(confidence - 8, 0)
+            if crypto_context["Flow_Bias"] == direction:
+                confidence = min(confidence + 5, 98)
+            elif crypto_context["Flow_Bias"] not in ("NEUTRAL", direction):
+                confidence = max(confidence - 6, 0)
 
         # --------------------------------------------------------------------------
         # IMPLEMENTASI DYNAMIC FRACTIONAL POSITION SIZING (MIFX Proksi)
@@ -2915,6 +3976,21 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
             stop_loss_distance_pips,
             optimizer_params,
         )
+        if setup_source == "TREND_CONTINUATION" and direction in ("BUY", "SELL"):
+            continuation_rr = TREND_MARKET_MIN_RR + min(trend_strength / 200.0, 0.50)
+            take_profit_distance_pips = max(
+                take_profit_distance_pips,
+                stop_loss_distance_pips * continuation_rr,
+            )
+            rr_ratio = take_profit_distance_pips / stop_loss_distance_pips if stop_loss_distance_pips else 0.0
+            tp_model = "TREND_CONTINUATION"
+        elif setup_source == "ZF_PULSE" and direction in ("BUY", "SELL"):
+            atr_pips = price_distance_to_pips(float(last_row["atr"]), data_symbol_info(symbol_name))
+            stop_loss_distance_pips = max(atr_pips * PULSE_SL_ATR, micro["Spread_Pips"] * 2.0)
+            take_profit_distance_pips = max(atr_pips * PULSE_TP_ATR, micro["Spread_Pips"] * 1.5)
+            rr_ratio = take_profit_distance_pips / stop_loss_distance_pips if stop_loss_distance_pips else 0.0
+            sl_model = "ZF_PULSE_ATR"
+            tp_model = "ZF_PULSE_QUICK"
         exit_mode = str(profile_item.get("exit_mode", "dynamic_sl_tp") or "dynamic_sl_tp").lower()
         if exit_mode == "tp_only" and AUTO_EXECUTION_REQUIRES_SL:
             exit_mode = "zf_dynamic_sl_tp"
@@ -2928,7 +4004,7 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
         close_price = float(last_row["close"])
         entry_model = "MARKET_REFERENCE"
         fibo_limit_price = np.nan
-        if direction == "BUY" and USE_FIBO_FILTER:
+        if direction == "BUY" and USE_FIBO_FILTER and setup_source not in ("TREND_CONTINUATION", "ZF_PULSE"):
             fibo_candidates = [
                 float(last_row.get("Fibo_618", np.nan)),
                 float(last_row.get("Fibo_500", np.nan)),
@@ -2936,7 +4012,7 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
             ]
             fibo_limit_price = min([v for v in fibo_candidates if pd.notna(v) and v > 0] or [close_price])
             entry_model = "ZF_FIBO_BUY_LIMIT"
-        elif direction == "SELL" and USE_FIBO_FILTER:
+        elif direction == "SELL" and USE_FIBO_FILTER and setup_source not in ("TREND_CONTINUATION", "ZF_PULSE"):
             fibo_candidates = [
                 float(last_row.get("Fibo_382", np.nan)),
                 float(last_row.get("Fibo_500", np.nan)),
@@ -2960,14 +4036,14 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
         
         if direction != "NEUTRAL" and exit_mode == "tp_only":
             recommended_lot = 0.01
+        elif direction != "NEUTRAL" and setup_source == "ZF_PULSE":
+            recommended_lot = min(PULSE_LOT, EA_MAX_LOT)
         elif direction != "NEUTRAL":
             money_at_risk = account_equity * (RISK_PER_TRADE_PCT / 100) * kelly_multiplier
-            pip_value_standard_lot = 10.0 
-            
-            raw_lot = money_at_risk / (stop_loss_distance_pips * pip_value_standard_lot)
-            recommended_lot = max(round(raw_lot, 2), 0.01)
-            
-            recommended_lot = min(recommended_lot, EA_MAX_LOT)
+            recommended_lot = round(
+                calculate_risk_based_lot(symbol_info, stop_loss_distance_pips, money_at_risk),
+                2,
+            )
 
         estimated_slippage_pips = estimate_slippage_pips(recommended_lot, micro)
         liquidity_status = "VOID" if micro["Liquidity_Void"] else "STRESSED" if micro["Liquidity_Stress"] >= 0.75 else "LAMINAR"
@@ -2985,10 +4061,26 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
             "Direction": direction,
             "Projected_Direction": projected_direction,
             "Signal_Type": signal_type,
+            "Setup_Source": setup_source,
             "Setup_Maturity": round(setup_maturity, 4),
             "Projection_Score": round(projection_score, 4),
             "Projection_Price_Slope": projection_price_slope,
             "Regime": regime,
+            "Trend_Bias": trend_bias,
+            "Trend_Score": trend_score,
+            "Trend_Strength": trend_strength,
+            "Trend_Alignment": trend_context["alignment"],
+            "Asset_Trend_Bias": asset_trend["bias"],
+            "Asset_Trend_Score": asset_trend["score"],
+            "Asset_Trend_Quality": asset_trend["quality"],
+            "Asset_ATR_Pct": asset_trend["atr_pct"],
+            "Asset_Volatility_Ok": asset_trend["volatility_ok"],
+            "Asset_Context_Status": asset_trend["context_status"],
+            "Asset_External_Score": asset_trend["external_score"],
+            "H1_Trend_Score": trend_context["h1"].get("score", 0.0),
+            "H1_Structure": trend_context["h1"].get("structure", "UNKNOWN"),
+            "H4_Trend_Score": trend_context["h4"].get("score", 0.0),
+            "H4_Structure": trend_context["h4"].get("structure", "UNKNOWN"),
             "Confidence": confidence,
             "Optimizer_Mode": optimizer_mode,
             "Optimizer_Confidence_Floor": optimizer_params["confidence_floor"],
@@ -3003,6 +4095,7 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
             "Dynamic_Lot": recommended_lot,
             "Entry_Price": round_symbol_price(execution_entry_price, symbol_info),
             "Entry_Model": entry_model,
+            "Preferred_Order_Type": direction if setup_source in ("TREND_CONTINUATION", "ZF_PULSE") else "",
             "SL_Pips": round(stop_loss_distance_pips, 1),
             "SL_Points": round(sl_points, 0) if pd.notna(sl_points) else np.nan,
             "SL_Price": round_symbol_price(sl_price, symbol_info),
@@ -3014,6 +4107,8 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
             "RR_Ratio": rr_ratio,
             "Spread_Pips": micro["Spread_Pips"],
             "Slippage_Est_Pips": estimated_slippage_pips,
+            "Asset_Max_Spread_Pips": micro["Max_Spread_Pips"],
+            "Asset_Max_Slippage_Pips": micro["Max_Slippage_Pips"],
             "Bid_Depth": micro["Bid_Depth"],
             "Ask_Depth": micro["Ask_Depth"],
             "Total_Depth": micro["Total_Depth"],
@@ -3025,6 +4120,16 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
             "Liquidity_Status": liquidity_status,
             "Liquidity_Void": micro["Liquidity_Void"],
             "Lambda_Liquidity": micro["Lambda_Liquidity"],
+            "Tick_Count": micro["Tick_Count"],
+            "Tick_Rate_Per_Min": micro["Tick_Rate_Per_Min"],
+            "Tick_Quality": micro["Tick_Quality"],
+            "Tick_Pressure": micro["Tick_Pressure"],
+            "Tick_Bias": micro["Tick_Bias"],
+            "Tick_Momentum_Bps": micro["Tick_Momentum_Bps"],
+            "Tick_Spread_P50": micro["Tick_Spread_P50"],
+            "Tick_Spread_P90": micro["Tick_Spread_P90"],
+            "Tick_Spread_Shock": micro["Tick_Spread_Shock"],
+            "Tick_Burst_Ratio": micro["Tick_Burst_Ratio"],
             "Fibo_Position": round(fibo_position, 4) if pd.notna(fibo_position) else np.nan,
             "Fibo_Aligned": bool(fibo_aligned),
             "Fibo_382": round_symbol_price(last_row.get("Fibo_382", np.nan), symbol_info),
@@ -3040,10 +4145,17 @@ def analyze_zf_manifold_v20(symbol_name, currency_strength, account_equity, opti
             "OKX_OI_Change_Pct": crypto_context["OI_Change_Pct"],
             "OKX_External_Stress": crypto_context["External_Stress"],
             "OKX_Funding_Bias": crypto_context["Funding_Bias"],
+            "OKX_Book_Imbalance": crypto_context["Book_Imbalance"],
+            "OKX_Book_Depth_USD": crypto_context["Book_Depth_USD"],
+            "OKX_Taker_Imbalance": crypto_context["Taker_Imbalance"],
+            "OKX_Flow_Bias": crypto_context["Flow_Bias"],
             "Drift": last_row['D_res'],       
             "Decay_Integral": last_row['Decay_Integral'],
             "Inflection_Detected": bool(last_row['Inflection_Detected']),
-            "ZF_Score": last_row['ZF_Score']  
+            "ZF_Score": last_row['ZF_Score'],
+            "ZF_Core_Score": last_row['ZF_Core_Score'],
+            "ZF_Score_Model": "OPERATIONAL_PROXY",
+            "P_Pure_Model": "HMA_MICRO_PROXY",
         }
         
     except Exception as e:
@@ -3069,6 +4181,7 @@ def main_core_final():
     macro = fetch_macro_sentiment()
     news_status = fetch_news_risk()
     forward_sync = sync_mt5_forward_results()
+    manual_sync = sync_manual_positions()
     
     all_symbols = data_symbols_get()
     mifx_symbols = filter_trade_symbols(all_symbols)
@@ -3083,7 +4196,9 @@ def main_core_final():
         )
         for symbol in scanned_symbols
     }
-    optimizer_state, optimizer_status = run_self_healing_optimizer(force=forward_sync.get("imported", 0) > 0)
+    optimizer_state, optimizer_status = run_self_healing_optimizer(
+        force=forward_sync.get("imported", 0) > 0 or manual_sync.get("closed", 0) > 0
+    )
     
     print("Menghitung Matriks Kekuatan Mata Uang Absolut...")
     currency_strength = compute_currency_strength(scanned_symbols, symbol_timeframes)
@@ -3131,6 +4246,14 @@ def main_core_final():
         risk_df["Ranking_Score"] = pd.Series(dtype=float)
     buy_pool = risk_df[(risk_df['Direction'] == "BUY") & (risk_df["Trade_Allowed"])].sort_values(by='Ranking_Score', ascending=False).head(TOP_BUY)
     sell_pool = risk_df[(risk_df['Direction'] == "SELL") & (risk_df["Trade_Allowed"])].sort_values(by='Ranking_Score', ascending=False).head(TOP_SELL)
+    manual_counter_pool = build_manual_counter_candidates(manual_sync)
+    if not manual_counter_pool.empty:
+        manual_buys = manual_counter_pool[manual_counter_pool["Direction"] == "BUY"]
+        manual_sells = manual_counter_pool[manual_counter_pool["Direction"] == "SELL"]
+        if not manual_buys.empty:
+            buy_pool = pd.concat([manual_buys, buy_pool], ignore_index=True).head(TOP_BUY)
+        if not manual_sells.empty:
+            sell_pool = pd.concat([manual_sells, sell_pool], ignore_index=True).head(TOP_SELL)
     live_tracker_stats = update_live_signal_tracker(
         buy_pool,
         sell_pool,
@@ -3164,6 +4287,7 @@ def main_core_final():
     print(f"News Risk : {news_status}")
     print(f"Macro Info: [DXY: {macro['DXY']:.2f}]  [US10Y: {macro['US10Y']:.2f}%]  [GOLD: ${macro['GOLD']:.2f}]")
     print(f"Forward Sync: {forward_sync.get('status')} ({forward_sync.get('imported', 0)} new MT5 deal)")
+    print(f"Manual Sync : {manual_sync.get('status')} ({len(manual_sync.get('active', []))} active / {manual_sync.get('closed', 0)} closed)")
     print(f"Universe   : {len(mifx_symbols)} eligible -> {len(scanned_symbols)} active utama ({','.join(sorted(SUPPORTED_ASSET_CLASSES))})")
     system_issues = []
     if not previous_archive_path:
@@ -3193,6 +4317,38 @@ def main_core_final():
         print(f"Cold Storage Move: {len(moved_to_cold)} old archive file(s)")
     if ea_signal_path:
         print(f"EA Signal : {ea_signal_path}")
+    print("--------------------------------------------------------")
+
+    print("FRUGAL ASSET TREND MONITOR")
+    asset_rows = risk_df[risk_df["Asset_Class"].isin(["metal", "crypto"])] if not risk_df.empty else pd.DataFrame()
+    if asset_rows.empty:
+        print("   (X) Tidak ada Gold/Crypto dalam universe aktif.")
+    else:
+        for _, asset_row in asset_rows.iterrows():
+            print(
+                f"   {asset_row['Symbol']:<10} {asset_row.get('Asset_Trend_Bias', 'RANGE')}"
+                f" {float(asset_row.get('Asset_Trend_Score', 0) or 0):+.1f}"
+                f" | Quality {float(asset_row.get('Asset_Trend_Quality', 0) or 0):.1f}"
+                f" | ATR {float(asset_row.get('Asset_ATR_Pct', 0) or 0):.3f}%"
+                f" | Vol {'OK' if bool(asset_row.get('Asset_Volatility_Ok', False)) else 'LOW'}"
+                f" | Context {asset_row.get('Asset_Context_Status', '-')}"
+            )
+    print("--------------------------------------------------------")
+
+    print("MANUAL POSITION MONITOR")
+    if not manual_sync.get("active"):
+        print("   (OK) Tidak ada posisi manual aktif.")
+    else:
+        for position in manual_sync["active"]:
+            sl_text = position["SL"] if position["SL"] > 0 else f"NONE -> ref {position['Emergency_SL']}"
+            print(
+                f"   {position['Symbol']:<10} {position['Direction']} {position['Volume']:.2f} lot"
+                f" | P/L ${position['Profit']:.2f} | SL {sl_text} | TP {position['TP']}"
+            )
+            print(
+                f"      Trend {position['Trend_Bias']} {float(position['Trend_Score']):+.1f}"
+                f" | {position['Action']} | {position['Recommendation']}"
+            )
     print("--------------------------------------------------------")
 
     print("RISK ENGINE SUMMARY")
@@ -3235,7 +4391,7 @@ def main_core_final():
         for _, row in buy_pool.iterrows():
             print(f" {rank}. {row['Symbol']:<10} | TF: {row.get('Timeframe', 'M30')} | Mode: {row.get('Exit_Mode', 'DYNAMIC_SL_TP')} | {row['Action_Signal']} | Sig: {row['Signal_Type']} | Lot: {row['Dynamic_Lot']} | Entry: {row['Entry_Price']} | SL: {fmt_price(row['SL_Price'])} ({fmt_value(row['SL_Points'], 0, ' points')}) | TP: {fmt_price(row['TP_Price'])} ({fmt_value(row['TP_Points'], 0, ' points')}) | RR: {fmt_rr(row['RR_Ratio'])} | Quality: {row['Accuracy_Quality_Score']:.1f} | Conf: {row['Confidence']}%")
             hold_note = "" if pd.isna(row.get("Expected_Hold_Hours", np.nan)) else f" | Est. hold historis {float(row['Expected_Hold_Hours']):.1f} jam"
-            print(f"    Detail: SL {fmt_value(row['SL_Pips'], 1, ' pips')} ({row['SL_Model']}) | TP {fmt_value(row['TP_Pips'], 1, ' pips')} ({row['TP_Model']}){hold_note} | Spread {row['Spread_Pips']:.2f} | Slip {row['Slippage_Est_Pips']:.2f} | Liq {row['Liquidity_Status']} | Drift {row['Drift']:.3f}% | ZF {row['ZF_Score']:.4f}")
+            print(f"    Detail: Trend {row.get('Trend_Bias', 'RANGE')} {float(row.get('Trend_Score', 0) or 0):+.1f} ({row.get('Trend_Alignment', 'MIXED')}) | SL {fmt_value(row['SL_Pips'], 1, ' pips')} ({row['SL_Model']}) | TP {fmt_value(row['TP_Pips'], 1, ' pips')} ({row['TP_Model']}){hold_note} | Spread {row['Spread_Pips']:.2f} | Slip {row['Slippage_Est_Pips']:.2f} | Liq {row['Liquidity_Status']} | Drift {row['Drift']:.3f}% | ZF {row['ZF_Score']:.4f}")
             print(f"    Saran: {row.get('User_Recommendation', '-')}")
             rank += 1
             
@@ -3249,7 +4405,7 @@ def main_core_final():
         for _, row in sell_pool.iterrows():
             print(f" {rank}. {row['Symbol']:<10} | TF: {row.get('Timeframe', 'M30')} | Mode: {row.get('Exit_Mode', 'DYNAMIC_SL_TP')} | {row['Action_Signal']} | Sig: {row['Signal_Type']} | Lot: {row['Dynamic_Lot']} | Entry: {row['Entry_Price']} | SL: {fmt_price(row['SL_Price'])} ({fmt_value(row['SL_Points'], 0, ' points')}) | TP: {fmt_price(row['TP_Price'])} ({fmt_value(row['TP_Points'], 0, ' points')}) | RR: {fmt_rr(row['RR_Ratio'])} | Quality: {row['Accuracy_Quality_Score']:.1f} | Conf: {row['Confidence']}%")
             hold_note = "" if pd.isna(row.get("Expected_Hold_Hours", np.nan)) else f" | Est. hold historis {float(row['Expected_Hold_Hours']):.1f} jam"
-            print(f"    Detail: SL {fmt_value(row['SL_Pips'], 1, ' pips')} ({row['SL_Model']}) | TP {fmt_value(row['TP_Pips'], 1, ' pips')} ({row['TP_Model']}){hold_note} | Spread {row['Spread_Pips']:.2f} | Slip {row['Slippage_Est_Pips']:.2f} | Liq {row['Liquidity_Status']} | Drift {row['Drift']:.3f}% | ZF {row['ZF_Score']:.4f}")
+            print(f"    Detail: Trend {row.get('Trend_Bias', 'RANGE')} {float(row.get('Trend_Score', 0) or 0):+.1f} ({row.get('Trend_Alignment', 'MIXED')}) | SL {fmt_value(row['SL_Pips'], 1, ' pips')} ({row['SL_Model']}) | TP {fmt_value(row['TP_Pips'], 1, ' pips')} ({row['TP_Model']}){hold_note} | Spread {row['Spread_Pips']:.2f} | Slip {row['Slippage_Est_Pips']:.2f} | Liq {row['Liquidity_Status']} | Drift {row['Drift']:.3f}% | ZF {row['ZF_Score']:.4f}")
             print(f"    Saran: {row.get('User_Recommendation', '-')}")
             rank += 1
 

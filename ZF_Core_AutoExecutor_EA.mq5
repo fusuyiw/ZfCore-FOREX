@@ -15,15 +15,17 @@ input long   MagicNumber            = 26061620;
 input bool   UseScannerLot          = true;
 input double FixedLot               = 0.01;
 input double MaxLot                 = 1.00;
-input int    MaxOpenExposures       = 3;
-input int    MaxSpreadPoints        = 300;
+input int    MaxOpenExposures       = 5;
+input int    MaxSpreadPoints        = 0;          // 0 = trust scanner's asset-aware spread gate
 input bool   RequireStopLoss        = true;
 
 input bool   EnableBuyLimit         = true;
 input bool   EnableSellLimit        = true;
 input int    LimitOffsetPoints      = 100;
-input int    PendingExpiryMinutes   = 15;
+input int    PendingExpiryMinutes   = 90;         // aligned with 6 x M15 calibration bars
 input int    TimerSeconds           = 10;
+input int    PulseCooldownMinutes   = 45;
+input int    MaxDailyPulseEntries   = 8;
 
 input bool   EnableTrailingStop     = true;
 input double TrailingStartR         = 0.75;
@@ -316,6 +318,84 @@ void MarkProcessed(string signalId)
    processedSignals[size] = signalId;
 }
 
+uint SignalHash(string text)
+{
+   uint hash = 2166136261;
+   for(int i = 0; i < StringLen(text); i++)
+   {
+      hash ^= (uint)StringGetCharacter(text, i);
+      hash *= 16777619;
+   }
+   return hash;
+}
+
+string SignalClaimKey(string signalId)
+{
+   return "ZF_CLAIM_" + IntegerToString((int)MagicNumber) + "_" + IntegerToString((int)SignalHash(signalId));
+}
+
+bool ClaimSignalGlobally(string signalId)
+{
+   string key = SignalClaimKey(signalId);
+   if(!GlobalVariableCheck(key))
+      GlobalVariableSet(key, 0.0);
+
+   double previous = GlobalVariableGet(key);
+   double nowValue = (double)TimeCurrent();
+   if(previous > 0.0 && previous >= nowValue - 86400.0)
+      return false;
+
+   return GlobalVariableSetOnCondition(key, nowValue, previous);
+}
+
+void ReleaseSignalClaim(string signalId)
+{
+   string key = SignalClaimKey(signalId);
+   if(GlobalVariableCheck(key))
+      GlobalVariableSet(key, 0.0);
+}
+
+bool IsPulseSignal(ZFSignal &sig)
+{
+   return sig.action == "EKSEKUSI_PULSE";
+}
+
+string PulseLastKey(string symbol)
+{
+   return StateKey("PULSE_LAST", symbol);
+}
+
+string PulseDailyKey()
+{
+   MqlDateTime nowParts;
+   TimeToStruct(TimeCurrent(), nowParts);
+   return StateKey(
+      "PULSE_DAY_" + IntegerToString(nowParts.year) + IntegerToString(nowParts.mon) + IntegerToString(nowParts.day)
+   );
+}
+
+bool PulseCadenceAllowed(string symbol)
+{
+   string lastKey = PulseLastKey(symbol);
+   if(GlobalVariableCheck(lastKey))
+   {
+      datetime lastEntry = (datetime)GlobalVariableGet(lastKey);
+      if(TimeCurrent() < lastEntry + MathMax(PulseCooldownMinutes, 1) * 60)
+         return false;
+   }
+   string dayKey = PulseDailyKey();
+   double dailyCount = GlobalVariableCheck(dayKey) ? GlobalVariableGet(dayKey) : 0.0;
+   return dailyCount < MathMax(MaxDailyPulseEntries, 1);
+}
+
+void RecordPulseEntry(string symbol)
+{
+   GlobalVariableSet(PulseLastKey(symbol), (double)TimeCurrent());
+   string dayKey = PulseDailyKey();
+   double dailyCount = GlobalVariableCheck(dayKey) ? GlobalVariableGet(dayKey) : 0.0;
+   GlobalVariableSet(dayKey, dailyCount + 1.0);
+}
+
 bool ReadSignalRow(int handle, ZFSignal &sig)
 {
    string signalId = FileReadString(handle);
@@ -349,7 +429,18 @@ bool ReadSignalRow(int handle, ZFSignal &sig)
 
 void ReadAndExecuteSignals()
 {
-   int handle = FileOpen(SignalFileName, FILE_READ | FILE_CSV | FILE_COMMON | FILE_ANSI, ';');
+   int handle = INVALID_HANDLE;
+   for(int attempt = 0; attempt < 3 && handle == INVALID_HANDLE; attempt++)
+   {
+      ResetLastError();
+      handle = FileOpen(
+         SignalFileName,
+         FILE_READ | FILE_CSV | FILE_COMMON | FILE_ANSI | FILE_SHARE_READ | FILE_SHARE_WRITE,
+         ';'
+      );
+      if(handle == INVALID_HANDLE)
+         Sleep(150);
+   }
    if(handle == INVALID_HANDLE)
    {
       runtimeStatus = "SIGNAL FILE NOT FOUND";
@@ -377,7 +468,10 @@ void ExecuteSignal(ZFSignal &sig)
 {
    if(sig.signalId == "" || AlreadyProcessed(sig.signalId))
       return;
-   if(sig.action != "EKSEKUSI" || (sig.direction != "BUY" && sig.direction != "SELL"))
+   if(
+      (sig.action != "EKSEKUSI" && sig.action != "EKSEKUSI_TERBATAS" && sig.action != "EKSEKUSI_PULSE")
+      || (sig.direction != "BUY" && sig.direction != "SELL")
+   )
       return;
 
    if(sig.expireMinutes <= 0 || TimeCurrent() > sig.scanTime + sig.expireMinutes * 60)
@@ -398,6 +492,12 @@ void ExecuteSignal(ZFSignal &sig)
       MarkProcessed(sig.signalId);
       return;
    }
+   if(IsPulseSignal(sig) && !PulseCadenceAllowed(sig.symbol))
+   {
+      Print("ZF PULSE CADENCE BLOCKED: ", sig.symbol);
+      MarkProcessed(sig.signalId);
+      return;
+   }
 
    int preparation = PrepareSymbol(sig);
    if(preparation <= 0)
@@ -410,14 +510,14 @@ void ExecuteSignal(ZFSignal &sig)
    }
 
    long spread = SymbolInfoInteger(sig.symbol, SYMBOL_SPREAD);
-   if(spread > MaxSpreadPoints)
+   if(MaxSpreadPoints > 0 && spread > MaxSpreadPoints)
    {
       Print("ZF SKIP SPREAD: ", sig.symbol, " spread=", spread);
       return;
    }
 
    double requestedLot = UseScannerLot ? sig.lot : FixedLot;
-   if(EnableRecoveryLot)
+   if(EnableRecoveryLot && sig.action != "EKSEKUSI_TERBATAS" && !IsPulseSignal(sig))
       requestedLot += GetRecoveryStep(sig.symbol) * MathMax(RecoveryBaseLot, 0.0);
    if(CurrentDrawdownPct() >= DefensiveDrawdownPct)
       requestedLot *= MathMax(MathMin(DefensiveLotFactor, 1.0), 0.01);
@@ -433,12 +533,24 @@ void ExecuteSignal(ZFSignal &sig)
    int digits = (int)SymbolInfoInteger(sig.symbol, SYMBOL_DIGITS);
    double sl = sig.sl > 0.0 ? NormalizeDouble(sig.sl, digits) : 0.0;
    double tp = NormalizeDouble(sig.tp, digits);
+   if(!ClaimSignalGlobally(sig.signalId))
+   {
+      Print("ZF DUPLICATE CLAIM BLOCKED: ", sig.signalId);
+      MarkProcessed(sig.signalId);
+      return;
+   }
    bool success = PlaceSignalOrder(sig, lot, sl, tp);
 
    if(success)
    {
+      if(IsPulseSignal(sig))
+         RecordPulseEntry(sig.symbol);
       MarkProcessed(sig.signalId);
       runtimeStatus = "LAST EXECUTED " + sig.symbol + " " + sig.orderType;
+   }
+   else
+   {
+      ReleaseSignalClaim(sig.signalId);
    }
 }
 

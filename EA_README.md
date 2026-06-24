@@ -36,7 +36,10 @@ EA ini adalah eksekutor otomatis untuk sinyal dari `zf_core_scanner_v20.py`.
 - `BuyLimitOffsetPoints=100`
 - `EnableSellLimitOrders=true`
 - `SellLimitOffsetPoints=100`
-- `PendingExpiryMinutes=15`
+- `MaxSpreadPoints=0` (spread dikendalikan scanner per kelas aset)
+- `PendingExpiryMinutes=90`
+- `PulseCooldownMinutes=45`
+- `MaxDailyPulseEntries=8`
 - `EnableTrailingStop=true`
 - `TrailingStartR=0.75`
 - `TrailingDistanceR=0.55`
@@ -56,6 +59,16 @@ Harga limit harus berada di bawah Ask; bila harga entry dari scanner terlalu dek
 Jika scanner mengirim `OrderType=SELL_LIMIT`, EA akan memasang pending order `SellLimit`.
 Harga limit harus berada di atas Bid; bila harga entry dari scanner terlalu dekat/di bawah Bid, EA menyesuaikan jaraknya memakai `SellLimitOffsetPoints` dan minimum stop-level broker.
 Trailing stop aktif setelah posisi bergerak sekitar `TrailingStartR` kali risiko awal. Jarak trailing mengikuti `TrailingDistanceR` kali risiko awal.
+
+Sinyal `PROJECTED` yang sangat matang dapat dikirim sebagai `EKSEKUSI_TERBATAS`.
+Lot diperkecil oleh scanner dan tetap melewati filter historis, kualitas,
+spread, slippage, serta RR. EA memakai global signal claim agar satu SignalId
+tidak dibuka berkali-kali ketika EA terpasang pada lebih dari satu chart.
+
+`EKSEKUSI_PULSE` adalah partisipasi kecil searah denyut ZF. Default lot scanner
+0.01, satu posisi EA per simbol, jeda 45 menit, dan maksimal 8 entry pulse per
+hari. Pulse tidak memakai recovery lot; flip, trailing, drawdown guard, SL dan
+cooldown akun tetap berlaku.
 
 Flip hanya dilakukan saat ada sinyal berlawanan yang memenuhi batas confidence dan quality. Recovery lot bertambah secara aritmetika, dibatasi `RecoveryMaxSteps`, dan tetap tidak boleh melewati `MaxLot`.
 

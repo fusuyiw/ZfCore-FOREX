@@ -8,6 +8,14 @@ import MetaTrader5 as mt5
 import numpy as np
 import pandas as pd
 
+from zf_strategy_core import (
+    ZFStrategyParams,
+    pending_entry_price,
+    prepare_zf_dataframe as prepare_shared_zf_dataframe,
+    signal_direction,
+    simulate_pending_trade,
+)
+
 
 BASE_DIR = Path(__file__).resolve().parent
 REPORT_DIR = BASE_DIR / "zf_validation_reports"
@@ -245,61 +253,21 @@ def pips_to_price(pips, symbol_info):
 
 
 def prepare_zf_dataframe(rates):
-    df = pd.DataFrame(rates)
-    df["time"] = pd.to_datetime(df["time"], unit="s")
-
-    df["P_pure"] = calculate_hma(df["close"], period=ZF_WINDOWS["hma"])
-    df["D_res"] = (abs(df["close"] - df["P_pure"]) / df["P_pure"]) * 100
-    df["Polarity"] = np.where(df["close"] > df["P_pure"], 1, -1)
-    df["Decay_Integral"] = (df["D_res"] * df["Polarity"]).rolling(window=ZF_WINDOWS["decay"]).sum()
-    df["Integral_Mean"] = df["Decay_Integral"].rolling(window=ZF_WINDOWS["threshold"]).mean()
-    df["Integral_Std"] = df["Decay_Integral"].rolling(window=ZF_WINDOWS["threshold"]).std()
-    df["Upper_Threshold"] = df["Integral_Mean"] + (2 * df["Integral_Std"])
-    df["Lower_Threshold"] = df["Integral_Mean"] - (2 * df["Integral_Std"])
-
-    df["V_avg"] = df["tick_volume"].rolling(window=ZF_WINDOWS["volume"]).mean()
-    df["V_abs"] = abs(df["tick_volume"] - df["V_avg"])
-    df["drift_mean"] = df["D_res"].rolling(window=ZF_WINDOWS["drift"]).mean()
-    df["drift_std"] = df["D_res"].rolling(window=ZF_WINDOWS["drift"]).std()
-
-    safe_tick_volume = df["tick_volume"].replace(0, np.nan)
-    safe_drift_std = df["drift_std"].replace(0, np.nan)
-    volume_component = np.clip(df["V_abs"] / safe_tick_volume, 0, 1)
-    drift_zscore = ((df["D_res"] - df["drift_mean"]) / safe_drift_std).abs()
-    drift_component = np.clip(drift_zscore / ZF_DRIFT_ZSCORE_SCALE, 0, 1)
-    df["ZF_Score"] = np.clip((0.45 * volume_component) + (0.35 * drift_component), 0, 1)
-
-    df["tr"] = np.maximum(
-        df["high"] - df["low"],
-        np.maximum(abs(df["high"] - df["close"].shift(1)), abs(df["low"] - df["close"].shift(1))),
+    params = ZFStrategyParams(
+        hma_period=ZF_WINDOWS["hma"],
+        decay_window=ZF_WINDOWS["decay"],
+        threshold_window=ZF_WINDOWS["threshold"],
+        threshold_sigma=float(os.getenv("ZF_VALIDATION_SIGMA", "1.5") or 1.5),
+        confirmation_bars=int(os.getenv("ZF_VALIDATION_CONFIRMATION_BARS", "1") or 1),
+        volume_window=ZF_WINDOWS["volume"],
+        drift_window=ZF_WINDOWS["drift"],
+        atr_period=ZF_WINDOWS["atr"],
+        fibo_lookback=FIBO_LOOKBACK_BARS,
+        zf_floor=float(os.getenv("ZF_VALIDATION_ZF_FLOOR", "0.45") or 0.45),
     )
-    df["atr"] = df["tr"].rolling(window=ZF_WINDOWS["atr"]).mean()
-    df["plus_dm"] = np.where(
-        (df["high"] - df["high"].shift(1)) > (df["low"].shift(1) - df["low"]),
-        np.maximum(df["high"] - df["high"].shift(1), 0),
-        0,
-    )
-    df["plus_di"] = 100 * (df["plus_dm"].rolling(window=ZF_WINDOWS["atr"]).mean() / df["atr"])
-    df["adx"] = abs(df["plus_di"] - 20)
-    df["Regime"] = np.where(df["adx"] > 15, "TREND", "RANGE")
-
-    df["Swing_High"] = df["high"].rolling(window=FIBO_LOOKBACK_BARS, min_periods=max(10, ZF_WINDOWS["hma"])).max()
-    df["Swing_Low"] = df["low"].rolling(window=FIBO_LOOKBACK_BARS, min_periods=max(10, ZF_WINDOWS["hma"])).min()
-    fib_range = (df["Swing_High"] - df["Swing_Low"]).replace(0, np.nan)
-    df["Fibo_Position"] = np.clip((df["close"] - df["Swing_Low"]) / fib_range, 0, 1)
-    df["Fibo_382"] = df["Swing_Low"] + fib_range * 0.382
-    df["Fibo_500"] = df["Swing_Low"] + fib_range * 0.500
-    df["Fibo_618"] = df["Swing_Low"] + fib_range * 0.618
-
-    df["BUY_LOCK"] = (
-        (df["Decay_Integral"] < df["Lower_Threshold"])
-        & (df["Decay_Integral"].shift(1) < df["Lower_Threshold"].shift(1))
-    )
-    df["SELL_LOCK"] = (
-        (df["Decay_Integral"] > df["Upper_Threshold"])
-        & (df["Decay_Integral"].shift(1) > df["Upper_Threshold"].shift(1))
-    )
-    df["Direction"] = np.select([df["BUY_LOCK"], df["SELL_LOCK"]], ["BUY", "SELL"], default="NEUTRAL")
+    df = prepare_shared_zf_dataframe(rates, params=params)
+    directions = [signal_direction(df, idx, params=params, use_fibo=False)[0] for idx in range(len(df))]
+    df["Direction"] = directions
     df["Fibo_Aligned"] = np.select(
         [
             (df["Direction"] == "BUY") & (df["Fibo_Position"] <= FIBO_BUY_MAX),
@@ -493,11 +461,36 @@ def validate_symbol(
             if pd.isna(sl_pips) or pd.isna(tp_pips):
                 continue
 
-            result, bars_to_result, entry_price, sl_price, tp_price, profit_pips, exit_price = simulate_trade(
-                df, idx, direction, sl_pips, tp_pips, symbol_info, horizon_bars, use_trailing=use_trailing
+            entry_price = pending_entry_price(row, direction)
+            digits = int(getattr(symbol_info, "digits", 5) or 5)
+            pip_points = 10 if digits in (3, 5) else 1
+            spread_series = pd.to_numeric(df.get("spread", pd.Series(dtype=float)), errors="coerce")
+            spread_pips = float(spread_series.replace(0, np.nan).median() / pip_points) if not spread_series.empty else 0.0
+            outcome = simulate_pending_trade(
+                df,
+                idx,
+                direction,
+                entry_price,
+                sl_pips,
+                tp_pips,
+                symbol_info,
+                expiry_bars=int(os.getenv("ZF_VALIDATION_PENDING_EXPIRY_BARS", "6") or 6),
+                horizon_bars=horizon_bars,
+                trailing=use_trailing,
+                spread_pips=spread_pips,
+                slippage_pips=max(spread_pips * 0.10, 0.05),
+                commission_r=0.015,
             )
+            result = outcome.get("Result", "INVALID")
+            bars_to_result = int(outcome.get("Bars_To_Result", 0) or 0)
+            r_result = float(outcome.get("R_Result", 0.0) or 0.0)
+            profit_pips = r_result * sl_pips
+            sl_distance = pips_to_price(sl_pips, symbol_info)
+            tp_distance = pips_to_price(tp_pips, symbol_info)
+            sl_price = entry_price - sl_distance if direction == "BUY" else entry_price + sl_distance
+            tp_price = entry_price + tp_distance if direction == "BUY" else entry_price - tp_distance
+            exit_price = np.nan
             rr_ratio = tp_pips / sl_pips if sl_pips else 0
-            r_result = profit_pips / sl_pips if sl_pips else 0
 
             trades.append(
                 {
@@ -535,9 +528,9 @@ def validate_symbol(
     trades_df = pd.DataFrame(trades)
     wins = int((trades_df["Result"].isin(["WIN", "TP_HIT"])).sum())
     losses = int(trades_df["Result"].isin(["LOSS", "LOSS_BOTH_HIT"]).sum())
-    expired = int(trades_df["Result"].isin(["EXPIRED", "NOT_HIT"]).sum())
+    expired = int(trades_df["Result"].isin(["EXPIRED", "NOT_HIT", "NOT_FILLED"]).sum())
     total = int(len(trades_df))
-    resolved = wins + losses if losses else total
+    resolved = wins + losses
     summary = {
         "Symbol": symbol_name,
         "Timeframe": timeframe_name,

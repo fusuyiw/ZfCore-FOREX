@@ -2,4 +2,11 @@
 __pycache__/
 *.pyc
 _unused_backup/
-zf_validationreports
+zf_archival_vault/
+zf_validation_reports/
+zf_live_learning/*.log
+zf_live_learning/open_signals.json
+zf_live_learning/*summary.csv
+zf_profiles/optimizer_state.json
+__pycache__/
+*.pyc

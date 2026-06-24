@@ -57,6 +57,10 @@ Jika belum mengikuti program baksos FK, pengguna tidak disarankan memakai scanne
 - Optimasi historis mingguan dengan jendela berjalan 60 hari.
 - Fractional Kelly konservatif yang hanya mengurangi risiko dasar.
 - Data publik OKX untuk funding rate dan open interest crypto.
+- Microstructure tick MT5 15 menit: pressure, momentum, tick rate, burst,
+  spread percentile, dan spread shock tanpa membutuhkan DOM broker.
+- Data publik OKX juga membaca depth order book dan recent taker flow ketika
+  endpoint dapat dijangkau dengan verifikasi TLS yang valid.
 - Flip engine terkonfirmasi, bounded recovery, drawdown cooldown, dan dynamic TP pada EA.
 - Provider data:
   - `MT5` untuk penggunaan lokal dengan MetaTrader 5.
@@ -147,6 +151,35 @@ ZF_SYNC_MT5_FORWARD_RESULTS=1
 ```
 
 Dengan konfigurasi tersebut, sinyal BUY yang lolos `EKSEKUSI` akan diekspor ke EA sebagai `BUY_LIMIT`, dan sinyal SELL sebagai `SELL_LIMIT`.
+Sinyal proyeksi yang matang dapat diekspor sebagai `EKSEKUSI_TERBATAS` dengan
+lot lebih kecil. Batas spread dan slippage disesuaikan menurut kelas aset agar
+Forex, metal, dan crypto tidak dinilai memakai satuan biaya yang sama.
+
+Mode trend-continuation menggunakan market order (`BUY`/`SELL`) ketika H1/H4
+kuat dan harga, `+DI/-DI`, serta velocity M15 sudah searah. Posisi manual magic
+`0` tidak disentuh; EA hanya membuka dan mengelola posisi magic `26061620`.
+TP continuation minimal 1.5R dan bertambah mengikuti kekuatan trend, sedangkan
+SL tetap wajib.
+
+Trend engine memakai candle H1 dan H4 yang sudah tutup. Skornya menggabungkan
+struktur HH/HL atau LH/LL, EMA50/200, slope HMA yang dinormalisasi ATR, serta
+arah `+DI/-DI`. Pada tren kuat, resonansi yang melawan tren diblokir dan scanner
+mencari pullback M15 searah tren. Pada kondisi range, mean-reversion tetap tersedia.
+
+Gold dan crypto memakai asset trend score yang frugal: skor H1/H4, impulse dan
+acceleration M15 yang dinormalisasi ATR, serta biaya relatif terhadap batas aset.
+Crypto menambahkan funding dan perubahan open interest OKX dari cache; funding
+dianggap crowding dan OI menjadi konfirmasi tren. Tidak ada tumpukan indikator
+tambahan. Keputusan menyimpan skor, ATR%, kualitas, status volatilitas, dan
+kontribusi eksternal agar dapat diaudit.
+
+Mode `ZF_PULSE` menyediakan progress yang lebih sering tanpa menunggu setup
+ekstrem. Pulse mengikuti arah trend/recent pressure, memakai market order,
+lot default 0.01, SL sekitar 1 ATR dan TP cepat sekitar 0.8 ATR. Buku Besar
+tetap menjadi filter recent-time: liquidity, spread, slippage, trend, ZF score,
+flip, trailing, drawdown guard, dan cooling-down tetap aktif. EA membatasi
+cadence per simbol dan jumlah pulse harian agar agresif tidak berubah menjadi
+overtrading tanpa batas.
 Jika ingin scanner kembali memakai timeframe terbaik dari hasil backtest per pair, ubah `ZF_USE_PROFILE_TIMEFRAMES=1`.
 Mode Fibo tetap tunduk pada prinsip ZF: Fibo hanya menjadi filter re-entry dan penentu harga limit, sementara arah utama tetap berasal dari `D_res`, `Decay_Integral`, dan `ZF_Score`.
 
@@ -163,12 +196,22 @@ Dengan mode ini, Gold tetap dipindai, tetapi OP hanya dibuka saat resonansi meta
 
 Forward-test learning aktif jika EA demo memakai `MagicNumber` yang sama. Scanner akan membaca closed deal dari history MT5, menyimpannya ke `zf_live_learning/mt5_forward_deals.csv`, lalu memasukkannya ke live learning agar optimizer menyesuaikan parameter dari hasil demo nyata.
 
+Posisi manual dengan magic number `0` juga dapat dipantau. Scanner menampilkan
+arah, floating P/L, keselarasan terhadap trend H1/H4, status SL, dan referensi
+SL darurat. Posisi yang sudah ditutup dicatat terpisah pada
+`zf_live_learning/manual_trades.csv`. Hasil manual baru memengaruhi optimizer
+setelah minimal 20 trade dan bobot default-nya hanya 10%, sehingga keputusan
+subjektif tidak langsung mengalahkan hasil EA dan walk-forward.
+
 Konteks crypto OKX menggunakan endpoint publik resmi dan tidak membutuhkan API key:
 
 ```text
 ZF_OKX_PUBLIC_DATA_ENABLED=1
 ZF_OKX_BASE_URL=https://www.okx.com
 ZF_OKX_REQUIRE_CRYPTO_DATA=0
+ZF_TICK_MICRO_ENABLED=1
+ZF_TICK_MICRO_LOOKBACK_MINUTES=15
+ZF_TICK_MICRO_MIN_TICKS=80
 ```
 
 Funding rate dan perubahan open interest menjadi sensor tambahan ZF, bukan pengganti data harga MT5. Jika OKX sedang tidak tersedia dan `ZF_OKX_REQUIRE_CRYPTO_DATA=0`, scanner mencatat kegagalan tersebut tetapi tetap dapat menganalisis aset lain.
@@ -210,6 +253,20 @@ zf_validation_reports/
 ```
 
 Scanner akan memakai hasil ini untuk membedakan pair `TRADEABLE`, `WATCH_ONLY`, dan `AVOID`.
+
+## Kalibrasi Walk-Forward
+
+Kalibrasi utama menggunakan candle yang sudah tutup, simulasi pending Fibonacci,
+spread/slippage, trailing stop, dan pengujian kronologis 70/30:
+
+```powershell
+python zf_calibrate.py --days 120 --timeframe M15 --limit 10
+```
+
+Hasil terbaik per simbol disimpan ke `zf_profiles/calibration_profile.json` dan
+otomatis dipakai scanner. Konfigurasi hanya diterima jika expectancy data latih
+positif dan tetap diuji pada periode setelahnya. Hasil historis tetap tidak
+menjamin performa masa depan.
 
 ## Live Learning
 

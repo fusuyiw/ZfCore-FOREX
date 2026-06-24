@@ -1,0 +1,25 @@
+{
+  "3347943130": {
+    "Ticket": 3347943130,
+    "Identifier": 3347943130,
+    "Open_Time": "2026-06-24T10:58:28+08:00",
+    "Symbol": "XAUUSDm",
+    "Direction": "BUY",
+    "Volume": 0.1,
+    "Entry": 4066.4480000000003,
+    "Current": 4086.564,
+    "SL": 0.0,
+    "TP": 4192.436,
+    "Profit": 201.16,
+    "Swap": 0.0,
+    "Trend_Bias": "SELL",
+    "Trend_Score": -93.65,
+    "Trend_Alignment": "COUNTER",
+    "H1_Score": -87.88,
+    "H4_Score": -97.83,
+    "Emergency_SL": 4068.03,
+    "Action": "EXIT_OR_TIGHTEN",
+    "Recommendation": "Posisi melawan tren SELL (-93.7). PASANG SL; referensi darurat 4068.03",
+    "Last_Seen": "2026-06-24T15:00:01.209352+08:00"
+  }
+}

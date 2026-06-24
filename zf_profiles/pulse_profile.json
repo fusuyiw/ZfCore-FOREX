@@ -1,0 +1,64 @@
+{
+  "updated_at": "2026-06-24T12:28:39.641742+08:00",
+  "lookback_days": 60,
+  "rules": {
+    "min_trades": 30,
+    "min_expectancy_r": 0.01,
+    "min_profit_factor": 1.02
+  },
+  "enabled_symbols": [
+    "EURCADm",
+    "AUDJPYm",
+    "GBPNZDm"
+  ],
+  "symbols": {
+    "EURCADm": {
+      "Symbol": "EURCADm",
+      "Trades": 238,
+      "Trades_Per_Day": 3.97,
+      "Win_Rate": 57.81,
+      "Expectancy_R": 0.0396,
+      "Profit_Factor": 1.094
+    },
+    "GBPCADm": {
+      "Symbol": "GBPCADm",
+      "Trades": 184,
+      "Trades_Per_Day": 3.07,
+      "Win_Rate": 55.19,
+      "Expectancy_R": -0.0065,
+      "Profit_Factor": 0.985
+    },
+    "AUDJPYm": {
+      "Symbol": "AUDJPYm",
+      "Trades": 182,
+      "Trades_Per_Day": 3.03,
+      "Win_Rate": 59.55,
+      "Expectancy_R": 0.0703,
+      "Profit_Factor": 1.178
+    },
+    "USDCADm": {
+      "Symbol": "USDCADm",
+      "Trades": 312,
+      "Trades_Per_Day": 5.2,
+      "Win_Rate": 47.1,
+      "Expectancy_R": -0.1525,
+      "Profit_Factor": 0.71
+    },
+    "GBPNZDm": {
+      "Symbol": "GBPNZDm",
+      "Trades": 239,
+      "Trades_Per_Day": 3.98,
+      "Win_Rate": 56.3,
+      "Expectancy_R": 0.0134,
+      "Profit_Factor": 1.031
+    },
+    "CADCHFm": {
+      "Symbol": "CADCHFm",
+      "Trades": 207,
+      "Trades_Per_Day": 3.45,
+      "Win_Rate": 55.17,
+      "Expectancy_R": -0.009,
+      "Profit_Factor": 0.979
+    }
+  }
+}
